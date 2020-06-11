@@ -1,0 +1,133 @@
+/*
+ *  This file is part of PapaFile
+ * 
+ *  File IO tools for Planetary Annihilation's papa files.
+ *  Copyright (C) 2020 Marcus Der <marcusder@hotmail.com>
+ * 
+ *  PapaFile is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  PapaFile is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License
+ *  along with PapaFile.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package papafile;
+
+public class PapaString extends PapaComponent{
+
+	private String value;
+	private int padding;  // I have no clue what this actually does
+	private PapaFile papaFile;
+	
+	private PapaString() {};
+	
+	public PapaString(String value, int padding, PapaFile p) {
+		this.value=value;
+		this.padding=padding;
+		this.papaFile=p;
+	}
+	
+	public String getValue() {
+		return value;
+	}
+	
+	public void setValue(String value) {
+		this.value = value;
+	}
+	
+	public int getPadding() {
+		return padding;
+	}
+
+	@Override
+	protected void build() {
+		byte[] headerBytes = new byte[16];
+		header = new ByteWriter(headerBytes);
+		
+		byte[] dataBytes = new byte[bodySize()];
+		data = new ByteWriter(dataBytes);
+		
+		data.write(value);
+		
+		header.write(value.length());
+		header.write(padding);
+		
+	}
+
+	@Override
+	protected void applyOffset(int offset) {
+		header.write((long)offset);
+	}
+
+	@Override
+	public void flush() {
+		papaFile = null;
+	}
+	
+	@Override
+	protected void validate() {}
+
+	@Override
+	protected int headerSize() {
+		return 16;
+	}
+
+	@Override
+	protected int bodySize() {
+		return ceilNextEight(value.length());
+	}
+	
+	@Override
+	protected void overwriteHelper(PapaComponent other) {// TODO
+	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		if(obj == null || !(obj.getClass().equals(PapaString.class)))
+			return false;
+		if(obj==this)
+			return true;
+		
+		PapaString s = (PapaString) obj;
+		return 		(s.padding 		== 	padding)
+				&&	(s.value.equals(	value));
+	}
+	
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + padding;
+		result = prime * result + value.hashCode();
+		return result;
+	}
+
+	@Override
+	public PapaFile getParent() {
+		return papaFile;
+	}
+
+	@Override
+	public void detach() {
+		papaFile = null;
+	}
+
+	@Override
+	protected void setParent(PapaFile newParent) {
+		papaFile = newParent;
+	}
+
+	@Override
+	public PapaString duplicate() {
+		PapaString p = new PapaString();
+		p.value = this.value;
+		p.padding = this.padding;
+		return p;
+	}
+}
