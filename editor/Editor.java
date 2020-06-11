@@ -249,12 +249,12 @@ public class Editor extends JFrame {
 			prop.setProperty("PapaOptions.ResizeMode", 			""+settings.resizeMode);
 			
 			BatchConvert b = e.batchConvert;
-			
 			prop.setProperty("BatchConvert.Recursive", 			""+b.isRecursive());
 			prop.setProperty("BatchConvert.WriteLinked", 		""+b.isWritingLinkedFiles());
 			prop.setProperty("BatchConvert.Overwrite", 			""+b.isOverwrite());
 			
-			prop.setProperty("PapaFile.PADirectory", 			PapaFile.getPlanetaryAnnihilationDirectory().getAbsolutePath());
+			if(PapaFile.getPlanetaryAnnihilationDirectory()!=null)
+				prop.setProperty("PapaFile.PADirectory", 			PapaFile.getPlanetaryAnnihilationDirectory().getAbsolutePath());
 			
 			try {
 				prop.store(new FileOutputStream(settingsFile), null);
