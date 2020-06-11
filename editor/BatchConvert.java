@@ -323,8 +323,12 @@ public class BatchConvert extends JDialog  {
 				for(int i = 0;i<p.getNumTextures();i++) {
 					PapaTexture tex = p.getTexture(0);
 					if(tex.isLinked()) {
-						if(! writeLinked) {
+						if( ! writeLinked) {
 							rejectMessage+="Ignoring linked texture; ";
+							continue;
+						}
+						if( ! tex.linkValid()) {
+							rejectMessage+="Linked texture not found; ";
 							continue;
 						}
 						tex = tex.getLinkedTexture();
