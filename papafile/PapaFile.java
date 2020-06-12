@@ -498,7 +498,7 @@ public class PapaFile extends PapaComponent{
 	}
 	
 	private void readStrings(RandomAccessFile in) throws IOException {
-		if (numStrings==-1)
+		if (numStrings == 0)
 			return;
 		
 		int[] length = 	new int[numStrings];
