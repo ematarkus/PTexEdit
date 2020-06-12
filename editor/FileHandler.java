@@ -289,22 +289,22 @@ public class FileHandler {
 					
 					ImmutableTextureSettings settings = info.getTextureSettings();
 					boolean hasTarget = settings.linkEnabled;
-					boolean link = settings.linkMethod==TextureSettings.LINK_TYPE_REFERENCE;
-					p = new PapaFile();
-					p.setFileLocation(file);
+					boolean link = settings.linkMethod==TextureSettings.LINK_TYPE_REFERENCE && hasTarget;
+					
+					if(hasTarget) {
+						p = settings.linkTarget;
+					} else {
+						p = new PapaFile();
+						p.setFileLocation(file);
+					}
 					
 					try {
 						b = ImageIO.read(file);
-						p.addTexture(b, info.getTextureSettings());
-						
-						if(hasTarget) { // this is a bit messy
-							PapaTexture t = p.getTexture(0);
-							p = settings.linkTarget;
-							if(link)
-								p.generateLinkedTexture(t);
-							else
-								t.attach(p);
-						}
+						PapaTexture t = new PapaTexture(b, info.getTextureSettings(), null, file.getName());
+						if(link)
+							p.generateLinkedTexture(t);
+						else
+							t.attach(p);
 						
 					} catch (IOException | NullPointerException e) { // NPE is quick solution for unload while converting
 						e.printStackTrace();

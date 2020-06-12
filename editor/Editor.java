@@ -52,6 +52,8 @@ public class Editor extends JFrame {
 
 	private static final long serialVersionUID = 894467903207605180L;
 	private static final String APPLICATION_NAME = "PTexEdit";
+	private static final String VERSION_STRING = "0.1";
+	private static final String BUILD_DATE = "June 12, 2020";
 	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
 	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
@@ -73,6 +75,8 @@ public class Editor extends JFrame {
 	private ConfigPanelBottom configSection2;
 	private ConfigPanelSelector configSelector;
 	private RibbonPanel ribbonPanel;
+	
+	private ClipboardImage clipboardImage;
 	
 	private JPanel config, canvas;
 	private JSplitPane mainPanel;
@@ -522,6 +526,7 @@ public class Editor extends JFrame {
 		configLayout.putConstraint(SpringLayout.EAST, configSelector, -5, SpringLayout.EAST, config);
 		config.add(configSelector);
 		
+		clipboardImage = new ClipboardImage();
 	}
 	
 	private class MenuBar extends JMenuBar {
@@ -531,7 +536,7 @@ public class Editor extends JFrame {
 		private ButtonGroup mViewChannelItems;
 		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile;
 		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
-		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser;
+		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mEditCopy;
 		
 		public int getSelectedRadioButton() { // I hate ButtonGroup.
 			Enumeration<AbstractButton> i = mViewChannelItems.getElements();
@@ -548,18 +553,20 @@ public class Editor extends JFrame {
 			mFileSave.setEnabled(false);
 			mFileSaveAs.setEnabled(false);
 			mFileExport.setEnabled(false);
+			mEditCopy.setEnabled(false);
 			mToolsShowInFileBrowser.setEnabled(false);
 		}
 
 		public void applySettings(PapaFile activeFile, int index, boolean same) {
 			PapaTexture tex = activeFile.getTexture(index);
-			if(tex.isLinked() && !tex.linkValid()) {
-				mToolsShowInFileBrowser.setEnabled(false);
+			if(tex.isLinked() && ! tex.linkValid()) {
+				unload();
 				return;
 			}
 			mFileSave.setEnabled(true);
 			mFileSaveAs.setEnabled(true);
 			mFileExport.setEnabled(true);
+			mEditCopy.setEnabled(true);
 			mToolsShowInFileBrowser.setEnabled(true);
 		}
 
@@ -690,9 +697,13 @@ public class Editor extends JFrame {
 				if(activeFile.getFile()!=null)
 					j.setCurrentDirectory(activeFile.getFile());
 				
+				PapaTexture tex = activeTexture;
+				if(tex.isLinked() && tex.linkValid())
+					tex = tex.getLinkedTexture();
+				
 				if (j.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
 					try {
-						FileHandler.exportImageTo(activeTexture, j.getSelectedFile(), (FileNameExtensionFilter)j.getFileFilter());
+						FileHandler.exportImageTo(tex, j.getSelectedFile(), (FileNameExtensionFilter)j.getFileFilter());
 					} catch (IOException e1) {
 						showError(e1.getMessage(), "Export Error", new Object[] {"Ok"}, "Ok");
 					}
@@ -708,6 +719,22 @@ public class Editor extends JFrame {
 			
 			mFileExit.addActionListener((ActionEvent e) -> {
 				System.exit(0);
+			});
+			
+			JMenu mEdit = new JMenu("Edit");
+			mEdit.setMnemonic('e');
+			add(mEdit);
+			
+			mEditCopy = new JMenuItem("Copy");
+			mEditCopy.setMnemonic('c');
+			mEditCopy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+			mEditCopy.setEnabled(false);
+			mEdit.add(mEditCopy);
+			mEditCopy.addActionListener((ActionEvent e)-> {
+				PapaTexture tex = activeTexture;
+				if(tex.isLinked() && tex.linkValid())
+					tex = tex.getLinkedTexture();
+				transferToClipboard(tex.getImage());
 			});
 			
 			JMenu mView = new JMenu("View");
@@ -869,7 +896,67 @@ public class Editor extends JFrame {
 				getTextureImportSettings(null);
 			});
 			mOptionsImageSettings.setMnemonic('v');
+			
+			JMenu mHelp = new JMenu("Help");
+			mHelp.setMnemonic('h');
+			add(mHelp);
+			
+			JMenuItem mHelpAbout = new JMenuItem("About");
+			mHelp.add(mHelpAbout);
+			mHelpAbout.addActionListener((ActionEvent e) -> {
+				JOptionPane.showMessageDialog(APPLICATION_WINDOW, "PTexEdit version: " + VERSION_STRING + "\n"
+						+ "Date: "+BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE);
+			});
+			mHelpAbout.setMnemonic('a');
 		}
+		// https://coderanch.com/t/333565/java/BufferedImage-System-Clipboard
+		private void transferToClipboard(BufferedImage image) {
+			TransferableImage t = new TransferableImage(image);
+			Clipboard c = Toolkit.getDefaultToolkit().getSystemClipboard();
+			c.setContents(t, clipboardImage);
+		}
+		
+		private class TransferableImage implements Transferable {
+			Image image;
+			
+			public TransferableImage(Image image) {
+				this.image = image;
+			}
+			
+			@Override
+			public DataFlavor[] getTransferDataFlavors() {
+				return new DataFlavor[] {DataFlavor.imageFlavor};
+			}
+
+			@Override
+			public boolean isDataFlavorSupported(DataFlavor flavor) {
+				DataFlavor[] flavors = getTransferDataFlavors();
+				for(DataFlavor d : flavors)
+					if(d.equals(flavor))
+						return true;
+				return false;
+			}
+
+			@Override
+			public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException {
+				if(flavor.equals(DataFlavor.imageFlavor))
+					if(image!=null)
+						return image;
+					else
+						throw new IOException("Image is null");
+				throw new UnsupportedFlavorException(flavor);
+			}
+			
+		}
+	}
+	
+	private class ClipboardImage implements ClipboardOwner {
+
+		@Override
+		public void lostOwnership(Clipboard clipboard, Transferable contents) {
+			// TODO
+		}
+		
 	}
 	
 	private class RibbonPanel extends JPanel {
@@ -1050,7 +1137,7 @@ public class Editor extends JFrame {
 			if(p==null || activeTexture == null)
 				return -1;
 			for(int i =0;i<p.getNumTextures();i++)
-				if(p.getTexture(i).isEqualOrLinked(activeTexture))
+				if(p.getTexture(i)==activeTexture)
 					return i;
 			return -1;
 		}
