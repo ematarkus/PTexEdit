@@ -31,7 +31,7 @@ import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-
+import java.awt.image.RenderedImage;
 
 import com.github.memo33.jsquish.Squish.CompressionMethod;
 
@@ -52,7 +52,7 @@ public class Editor extends JFrame {
 
 	private static final long serialVersionUID = 894467903207605180L;
 	private static final String APPLICATION_NAME = "PTexEdit";
-	private static final String VERSION_STRING = "0.1";
+	private static final String VERSION_STRING = "0.1.1";
 	private static final String BUILD_DATE = "June 12, 2020";
 	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
@@ -64,6 +64,7 @@ public class Editor extends JFrame {
 	private static ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
 	private static ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
 	private static final Properties prop = new Properties();
+	private static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
 	private JPanel contentPane;
 	
@@ -266,11 +267,11 @@ public class Editor extends JFrame {
 		}
 	});
 	
-	public class FileWorker extends SwingWorker<Void,PapaFile> {
+	private class FileWorker extends SwingWorker<Void,PapaFile> {
 
 		private File[] files;
-		private ImmutableTextureSettings settings = null;
-		private ImportInterface importInterface = null;
+		protected ImmutableTextureSettings settings = null;
+		protected ImportInterface importInterface = null;
 		private boolean ignoreReprompt = false;
 		private float subProgress = 0f;
 		private float totalSubFiles = 0f;
@@ -355,8 +356,60 @@ public class Editor extends JFrame {
 		}
 	}
 	
+	private class ImageFileWorker extends FileWorker {
+		private Image image;
+		public ImageFileWorker(Image image) {
+			this.image = image;
+			papaOptions.setMultiMode(false);
+		}
+		
+		@Override
+		protected Void doInBackground() throws Exception {
+			long time = System.nanoTime();
+			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(true));
+			
+			SwingUtilities.invokeAndWait(() -> settings = getTextureImportSettings(null));
+			
+			if(settings!=null) {
+				
+				ImportInfo info = new ImportInfo();
+				info.setTextureSettings(settings);
+				info.setInternalMode(true);
+				info.setActivityListener(new ActivityListener() {
+					@Override
+					public void onRejectFile(File f, String reason) {}
+					@Override
+					public void onAcceptFile(PapaFile p) {
+						p.setFileLocation(null);
+						publish(p);
+					}
+				});
+				
+				File f = File.createTempFile("PTexEditImport", ".png");
+				ImageIO.write((RenderedImage) image, "png", f);
+				try {
+					FileHandler.readFiles(f, FileHandler.IMAGE_INTERFACE, info, false, true);
+				} finally {
+					f.delete();
+				}
+				
+				if(info.getNumAcceptedFiles()==0)
+					showError("Unable to paste image: " + info.getRejectedFileReasons()[0], "Paste error", new Object[] {"Ok"}, "Ok");
+			}
+			
+			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(false));
+			System.out.println("Time: "+(double)(System.nanoTime()-time)/1000000d+" ms");
+			return null;
+		}
+	}
+	
 	private void readAll(File...files) {
 		FileWorker fw = new FileWorker(files);
+		fw.execute();
+	}
+	
+	private void readImage(Image image) {
+		FileWorker fw = new ImageFileWorker(image);
 		fw.execute();
 	}
 	
@@ -370,6 +423,7 @@ public class Editor extends JFrame {
 		menu.mFileImport.setEnabled(enable);
 		menu.mFileOpen.setEnabled(enable);
 		menu.mToolsConvertFolder.setEnabled(enable);
+		menu.mEditPaste.setEnabled(enable);
 		imagePanel.dragDropEnabled = enable;
 	}
 
@@ -536,7 +590,7 @@ public class Editor extends JFrame {
 		private ButtonGroup mViewChannelItems;
 		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile;
 		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
-		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mEditCopy;
+		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mEditCopy, mEditPaste;
 		
 		public int getSelectedRadioButton() { // I hate ButtonGroup.
 			Enumeration<AbstractButton> i = mViewChannelItems.getElements();
@@ -737,6 +791,19 @@ public class Editor extends JFrame {
 				transferToClipboard(tex.getImage());
 			});
 			
+			mEditPaste = new JMenuItem("Paste");
+			mEditPaste.setMnemonic('p');
+			mEditPaste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+			mEdit.add(mEditPaste);
+			mEditPaste.addActionListener((ActionEvent e)-> {
+				Image i = getImageFromClipboard();
+				if(i==null) {
+					showError("Clipboard does not contain an image.", "Invalid input", new Object[] {"Ok"}, "Ok");
+					return;
+				}
+				readImage(i);
+			});
+			
 			JMenu mView = new JMenu("View");
 			mView.setMnemonic('v');
 			add(mView);
@@ -909,11 +976,21 @@ public class Editor extends JFrame {
 			});
 			mHelpAbout.setMnemonic('a');
 		}
+		private Image getImageFromClipboard() {
+			try {
+				return (Image)clipboard.getData(DataFlavor.imageFlavor);
+			} catch (UnsupportedFlavorException e) {
+				return null;
+			} catch (IOException e) {
+				e.printStackTrace();
+				return null;
+			}
+		}
+
 		// https://coderanch.com/t/333565/java/BufferedImage-System-Clipboard
 		private void transferToClipboard(BufferedImage image) {
 			TransferableImage t = new TransferableImage(image);
-			Clipboard c = Toolkit.getDefaultToolkit().getSystemClipboard();
-			c.setContents(t, clipboardImage);
+			clipboard.setContents(t, clipboardImage);
 		}
 		
 		private class TransferableImage implements Transferable {
