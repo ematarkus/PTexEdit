@@ -61,7 +61,6 @@ public class PapaOptions extends JDialog  {
 		boolean isDirectory = f.isDirectory();
 		fileName.setText("Importing "+f.getAbsolutePath()+" ("+(isDirectory ? "directory" : "file") +")");
 	}
-	
 
 	public void updateLinkOptions(PapaFile[] targetablePapaFiles) {
 		linkSection.setTargetableFiles(targetablePapaFiles);
@@ -261,6 +260,7 @@ public class PapaOptions extends JDialog  {
 	private class GeneralSection extends JPanel {
 		private static final long serialVersionUID = -2793881931131513062L;
 		private JComboBox<String> formatSelector, dxtCompressionMode;
+		private JLabel labelFormat, labelDXTMode;
 
 		
 		private int methodToIndex(CompressionMethod method) {
@@ -307,7 +307,9 @@ public class PapaOptions extends JDialog  {
 				
 				@Override
 				public void actionPerformed(ActionEvent e) {
-					dxtCompressionMode.setEnabled(checkIsDXT());
+					boolean enabled = checkIsDXT();
+					dxtCompressionMode.setEnabled(enabled);
+					labelDXTMode.setEnabled(enabled);
 				}
 			});
 			
@@ -320,16 +322,16 @@ public class PapaOptions extends JDialog  {
 			layout.putConstraint(SpringLayout.EAST, dxtCompressionMode, -10, SpringLayout.EAST, this);
 			add(dxtCompressionMode);
 			
-			JLabel labelFormat = new JLabel("Format:");
+			labelFormat = new JLabel("Format:");
 			layout.putConstraint(SpringLayout.NORTH, labelFormat, 3, SpringLayout.NORTH, formatSelector);
 			layout.putConstraint(SpringLayout.WEST, labelFormat, 20, SpringLayout.WEST, this);
 			add(labelFormat);
 			
 			
-			JLabel labelDXTQuality = new JLabel("DXT Mode:");
-			layout.putConstraint(SpringLayout.NORTH, labelDXTQuality, 3, SpringLayout.NORTH, dxtCompressionMode);
-			layout.putConstraint(SpringLayout.WEST, labelDXTQuality, 20, SpringLayout.WEST, this);
-			add(labelDXTQuality);
+			labelDXTMode = new JLabel("DXT Mode:");
+			layout.putConstraint(SpringLayout.NORTH, labelDXTMode, 3, SpringLayout.NORTH, dxtCompressionMode);
+			layout.putConstraint(SpringLayout.WEST, labelDXTMode, 20, SpringLayout.WEST, this);
+			add(labelDXTMode);
 			
 		}
 		
@@ -337,6 +339,7 @@ public class PapaOptions extends JDialog  {
 			formatSelector.setSelectedItem(settings.getFormat());
 			dxtCompressionMode.setSelectedIndex(methodToIndex(settings.getCompressionMethod()));
 			dxtCompressionMode.setEnabled(checkIsDXT());
+			labelDXTMode.setEnabled(checkIsDXT());
 		}
 		
 		private void commit(TextureSettings settings) {
@@ -349,6 +352,7 @@ public class PapaOptions extends JDialog  {
 		private static final long serialVersionUID = -2889774212551032335L;
 		private JCheckBox doResize;
 		private JComboBox<String> resizeMethod, resizeMode;
+		private JLabel labelMethod, labelAlgorithm;
 		
 		public ResizeSection(TextureSettings settings) {
 			setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)),"Resize"));
@@ -367,8 +371,11 @@ public class PapaOptions extends JDialog  {
 
 				@Override
 				public void actionPerformed(ActionEvent e) {
-					resizeMode.setEnabled(doResize.isSelected());
-					resizeMethod.setEnabled(doResize.isSelected());
+					boolean enabled = doResize.isSelected();
+					resizeMode.setEnabled(enabled);
+					resizeMethod.setEnabled(enabled);
+					labelAlgorithm.setEnabled(enabled);
+					labelMethod.setEnabled(enabled);
 				}
 				
 			});
@@ -396,12 +403,12 @@ public class PapaOptions extends JDialog  {
 			layout.putConstraint(SpringLayout.EAST, resizeMethod, -10, SpringLayout.EAST, this);
 			add(resizeMethod);
 			
-			JLabel labelMethod = new JLabel("Method:");
+			labelMethod = new JLabel("Method:");
 			layout.putConstraint(SpringLayout.NORTH, labelMethod, 3, SpringLayout.NORTH, resizeMode);
 			layout.putConstraint(SpringLayout.WEST, labelMethod, 20, SpringLayout.WEST, this);
 			add(labelMethod);
 			
-			JLabel labelAlgorithm = new JLabel("Algorithm:");
+			labelAlgorithm = new JLabel("Algorithm:");
 			layout.putConstraint(SpringLayout.NORTH, labelAlgorithm, 3, SpringLayout.NORTH, resizeMethod);
 			layout.putConstraint(SpringLayout.WEST, labelAlgorithm, 20, SpringLayout.WEST, this);
 			add(labelAlgorithm);
@@ -414,6 +421,8 @@ public class PapaOptions extends JDialog  {
 			resizeMode.setEnabled(settings.getResize());
 			resizeMethod.setEnabled(settings.getResize());
 			resizeMethod.setSelectedIndex(settings.getResizeMethod());
+			labelAlgorithm.setEnabled(settings.getResize());
+			labelMethod.setEnabled(settings.getResize());
 		}
 		
 		private void commit(TextureSettings settings) {
@@ -426,6 +435,7 @@ public class PapaOptions extends JDialog  {
 		private static final long serialVersionUID = -2889774212551032335L;
 		private JCheckBox generateMipmaps;
 		private JComboBox<String> mipmapScaleAlgorithm;
+		private JLabel labelAlgorithm;
 		
 		public MipmapSection(TextureSettings settings) {
 			setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)),"Mipmaps"));
@@ -444,7 +454,9 @@ public class PapaOptions extends JDialog  {
 				
 				@Override
 				public void actionPerformed(ActionEvent e) {
-					mipmapScaleAlgorithm.setEnabled(generateMipmaps.isSelected());
+					boolean enabled = generateMipmaps.isSelected();
+					mipmapScaleAlgorithm.setEnabled(enabled);
+					labelAlgorithm.setEnabled(enabled);
 					
 				}
 			});
@@ -461,7 +473,7 @@ public class PapaOptions extends JDialog  {
 			layout.putConstraint(SpringLayout.EAST, mipmapScaleAlgorithm, -10, SpringLayout.EAST, this);
 			add(mipmapScaleAlgorithm);
 			
-			JLabel labelAlgorithm = new JLabel("Algorithm:");
+			labelAlgorithm = new JLabel("Algorithm:");
 			layout.putConstraint(SpringLayout.NORTH, labelAlgorithm, 3, SpringLayout.NORTH, mipmapScaleAlgorithm);
 			layout.putConstraint(SpringLayout.WEST, labelAlgorithm, 20, SpringLayout.WEST, this);
 			add(labelAlgorithm);
@@ -473,6 +485,7 @@ public class PapaOptions extends JDialog  {
 			generateMipmaps.setSelected(settings.getGenerateMipmaps());
 			mipmapScaleAlgorithm.setSelectedIndex(settings.getMipmapResizeMethod());
 			mipmapScaleAlgorithm.setEnabled(settings.getGenerateMipmaps());
+			labelAlgorithm.setEnabled(settings.getGenerateMipmaps());
 		}
 		
 		private void commit(TextureSettings settings) {
