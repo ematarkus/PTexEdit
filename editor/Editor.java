@@ -2209,7 +2209,6 @@ public class Editor extends JFrame {
 	            		file = (PapaFile)o;
 	            		PapaTexture[] textures = extract(file,rip);
 	            		placeInOwnFiles(file, textures);
-	            		
 	            	}
 	            	if(file != null && file.getNumTextures()==0)
             			SwingUtilities.invokeLater(()->removeFromTree(node));
@@ -2266,10 +2265,11 @@ public class Editor extends JFrame {
 	        
 	        private PapaTexture[] extract(PapaFile p, boolean rip) {
 	        	PapaTexture[] textures = getValidTextures(p);
+	        	HashSet<PapaTexture> uniqueTextures = new HashSet<PapaTexture>();
 	        	for(int i =0;i<textures.length;i++) {
-        			textures[i] = extract(textures[i],rip);
+        			uniqueTextures.add(extract(textures[i],rip));
 	        	}
-	        	return textures;
+	        	return uniqueTextures.toArray(new PapaTexture[uniqueTextures.size()]);
 	        }
 	        
 	        private PapaTexture[] getValidTextures(PapaFile p) {
@@ -2286,7 +2286,7 @@ public class Editor extends JFrame {
 	        private PapaTexture extract(PapaTexture t,boolean rip) {
 	        	PapaTexture target = t;
 	        	if(target.isLinked()) {
-	        		if(target.getParent() == null || ! target.linkValid()) // check null for edge case that the user selected both the linked and actual version of a texture
+	        		if(target.getParent() == null || ! target.linkValid())
 	        			return null;
 	        		target = target.getLinkedTexture();
 	        	}
