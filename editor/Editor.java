@@ -24,6 +24,7 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.tree.*;
 import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.*;
 
 import java.awt.*;
@@ -52,8 +53,8 @@ public class Editor extends JFrame {
 
 	private static final long serialVersionUID = 894467903207605180L;
 	private static final String APPLICATION_NAME = "PTexEdit";
-	private static final String VERSION_STRING = "0.1.1";
-	private static final String BUILD_DATE = "June 12, 2020";
+	private static final String VERSION_STRING = "0.2";
+	private static final String BUILD_DATE = "June 15, 2020";
 	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
 	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
@@ -63,6 +64,8 @@ public class Editor extends JFrame {
 	private static ImageIcon imgPapafileLinkedImage = loadIconFromResources("papafileLinkedImage.png");
 	private static ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
 	private static ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
+	private static ImageIcon plusIcon = loadIconFromResources("plus.png");
+	private static ImageIcon minusIcon = loadIconFromResources("minus.png");
 	private static final Properties prop = new Properties();
 	private static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
@@ -157,7 +160,8 @@ public class Editor extends JFrame {
 			e.menu.mViewNoAlpha.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Tile", "false")))
 			e.menu.mViewTile.doClick(0);
-		
+		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.Root", "false")))
+			e.menu.mOptionsShowRoot.doClick(0);
 		//e.maxThreads = Integer.valueOf(prop.getProperty("Application.Config.MaxThreads", "4"));
 		
 		TextureSettings t = new TextureSettings();
@@ -240,6 +244,7 @@ public class Editor extends JFrame {
 			prop.setProperty("Application.Menu.View.Luminance", ""+e.menu.mViewLuminance.isSelected());
 			prop.setProperty("Application.Menu.View.Alpha", 	""+e.menu.mViewNoAlpha.isSelected());
 			prop.setProperty("Application.Menu.View.Tile", 		""+e.menu.mViewTile.isSelected());
+			prop.setProperty("Application.Menu.Options.Root",	""+e.menu.mOptionsShowRoot.isSelected());
 			//prop.setProperty("Application.Config.MaxThreads", 	""+e.maxThreads);
 			
 			ImmutableTextureSettings settings = e.papaOptions.getCurrentSettings();
@@ -588,7 +593,7 @@ public class Editor extends JFrame {
 		private static final long serialVersionUID = 275294845979597235L;
 
 		private ButtonGroup mViewChannelItems;
-		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile;
+		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mOptionsShowRoot;
 		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
 		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mEditCopy, mEditPaste;
 		
@@ -621,7 +626,7 @@ public class Editor extends JFrame {
 			mFileSaveAs.setEnabled(true);
 			mFileExport.setEnabled(true);
 			mEditCopy.setEnabled(true);
-			mToolsShowInFileBrowser.setEnabled(true);
+			mToolsShowInFileBrowser.setEnabled(activeFile.getFile()!=null && activeFile.getFile().exists());
 		}
 
 		public void setSelectedRadioButton(int index) {
@@ -951,18 +956,26 @@ public class Editor extends JFrame {
 				}
 			});
 			
-			//JMenuItem mOptionsCacheInfo = new JMenuItem("Remember Image Settings"); TODO
-			//mOptions.add(mOptionsCacheInfo);
-			
-			//JMenuItem mOptionsShowRoot = new JMenuItem("Always Show Root");
-			//mOptions.add(mOptionsShowRoot);
-			
 			JMenuItem mOptionsImageSettings = new JMenuItem("View Import Settings");
 			mOptions.add(mOptionsImageSettings);
 			mOptionsImageSettings.addActionListener((ActionEvent e) -> {
 				getTextureImportSettings(null);
 			});
 			mOptionsImageSettings.setMnemonic('v');
+			
+			JSeparator optionsSeparator = new JSeparator();
+			mOptions.add(optionsSeparator);
+			
+			//JMenuItem mOptionsCacheInfo = new JMenuItem("Remember Image Settings"); TODO
+			//mOptions.add(mOptionsCacheInfo);
+			
+			mOptionsShowRoot = new JCheckBoxMenuItem("Always Show Root");
+			mOptions.add(mOptionsShowRoot);
+			mOptionsShowRoot.addActionListener((ActionEvent e) -> {
+				configSelector.setAlwaysShowRoot(mOptionsShowRoot.isSelected());
+			});
+			mOptionsShowRoot.setMnemonic('a');
+			
 			
 			JMenu mHelp = new JMenu("Help");
 			mHelp.setMnemonic('h');
@@ -1056,9 +1069,7 @@ public class Editor extends JFrame {
 		}
 		
 		public void changeZoom(int change) {
-			if(change == 0 || (change<0 && zoomSlider.getValue()==zoomSlider.getMinimum()) || (change>0 && zoomSlider.getValue()==zoomSlider.getMaximum()))
-				return; // prevent redundant redrawing.
-			zoomSlider.setValue(zoomSlider.getValue() + change); // changeListener takes it from here.
+			zoomSlider.setValue(zoomSlider.getValue() + change);
 		}
 		
 		public double getZoomScale() {
@@ -1080,6 +1091,25 @@ public class Editor extends JFrame {
 				locationLabel.setText("");
 			
 		}
+		
+		private class ButtonMouseListener implements MouseListener {
+			private JButton j;
+			public ButtonMouseListener(JButton j) {
+				this.j=j;
+			}
+			public void mouseReleased(MouseEvent e) {}
+			public void mousePressed(MouseEvent e) {}
+			public void mouseClicked(MouseEvent e) {}
+			public void mouseExited(MouseEvent e) {
+				j.setBorderPainted(false);
+			}
+			
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				j.setBorderPainted(true);
+			}
+			
+		};
 
 		public RibbonPanel() {
 			setBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)));
@@ -1087,11 +1117,29 @@ public class Editor extends JFrame {
 			SpringLayout layout = new SpringLayout();
 			setLayout(layout);
 			
+			JButton plusButton = new JButton();
+			plusButton.setIcon(plusIcon);
+			layout.putConstraint(SpringLayout.NORTH, plusButton, 0, SpringLayout.NORTH, this);
+			layout.putConstraint(SpringLayout.EAST, plusButton, 0, SpringLayout.EAST, this);
+			layout.putConstraint(SpringLayout.SOUTH, plusButton, 0, SpringLayout.SOUTH, this);
+			layout.putConstraint(SpringLayout.WEST, plusButton, -25, SpringLayout.EAST, this);
+			plusButton.setOpaque(false);
+			plusButton.setBorderPainted(false);
+			plusButton.setFocusPainted(false);
+			plusButton.setBackground(new Color(0f,0f,0f,0f));
+			plusButton.setForeground(new Color(0f,0f,0f,0f));
+			plusButton.addMouseListener(new ButtonMouseListener(plusButton));
+			add(plusButton);
+			
+			plusButton.addActionListener((ActionEvent e) -> {
+				changeZoom(1);
+			});
+			
 			zoomSlider = new JSlider();
 			layout.putConstraint(SpringLayout.NORTH, zoomSlider, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, zoomSlider, -5, SpringLayout.EAST, this); // -20
+			layout.putConstraint(SpringLayout.EAST, zoomSlider, 0, SpringLayout.WEST, plusButton);
 			layout.putConstraint(SpringLayout.SOUTH, zoomSlider, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, zoomSlider, -5 - SLIDER_TICKS*10, SpringLayout.EAST, this); // -20
+			layout.putConstraint(SpringLayout.WEST, zoomSlider, -5 - SLIDER_TICKS*10, SpringLayout.EAST, this);
 			zoomSlider.setMajorTickSpacing(1);
 			zoomSlider.setMaximum(SLIDER_TICKS);
 			zoomSlider.setValue(SLIDER_TICKS/2);
@@ -1105,11 +1153,29 @@ public class Editor extends JFrame {
 				}
 			});
 			
+			JButton minusButton = new JButton();
+			minusButton.setIcon(minusIcon);
+			layout.putConstraint(SpringLayout.NORTH, minusButton, 0, SpringLayout.NORTH, this);
+			layout.putConstraint(SpringLayout.EAST, minusButton, 0, SpringLayout.WEST, zoomSlider);
+			layout.putConstraint(SpringLayout.SOUTH, minusButton, 0, SpringLayout.SOUTH, this);
+			layout.putConstraint(SpringLayout.WEST, minusButton, -25, SpringLayout.WEST, zoomSlider);
+			minusButton.setOpaque(false);
+			minusButton.setBorderPainted(false);
+			minusButton.setFocusPainted(false);
+			minusButton.setBackground(new Color(0f,0f,0f,0f));
+			minusButton.setForeground(new Color(0f,0f,0f,0f));
+			minusButton.addMouseListener(new ButtonMouseListener(minusButton));
+			add(minusButton);
+			
+			minusButton.addActionListener((ActionEvent e) -> {
+				changeZoom(-1);
+			});
+			
 			JSeparator sep1 = new JSeparator();
 			layout.putConstraint(SpringLayout.NORTH, sep1, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, sep1, -5, SpringLayout.WEST, zoomSlider); // -20
+			layout.putConstraint(SpringLayout.EAST, sep1, 0, SpringLayout.WEST, minusButton); // -20
 			layout.putConstraint(SpringLayout.SOUTH, sep1, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, sep1, -7, SpringLayout.WEST, zoomSlider);
+			layout.putConstraint(SpringLayout.WEST, sep1, -2, SpringLayout.WEST, minusButton);
 			sep1.setOrientation(JSlider.VERTICAL);
 			add(sep1);
 			
@@ -1633,6 +1699,7 @@ public class Editor extends JFrame {
 		private final JTree fileTree;
 		private final JScrollPane treeScrollPane;
 		private final DefaultTreeModel treeModel;
+		private boolean alwaysShowRoot;
 		
 		public DefaultMutableTreeNode refreshEntry(DefaultMutableTreeNode node) {
 			DefaultMutableTreeNode added = null;
@@ -1648,6 +1715,44 @@ public class Editor extends JFrame {
 			treeModel.reload(parent);
 			return added;
 			
+		}
+
+		public void setAlwaysShowRoot(boolean selected) {
+			this.alwaysShowRoot = selected;
+			reloadAll();
+		}
+		
+		public void reloadAll() {
+			PapaFile selected = lastSelected==null ? null : getAssociatedPapaFile(lastSelected);
+			DefaultMutableTreeNode[] nodes = getTopLevelNodes();
+			PapaFile[] papafiles = new PapaFile[nodes.length];
+			for(int i = 0;i<nodes.length;i++)
+				papafiles[i] = getAssociatedPapaFile(nodes[i]);
+			
+			SwingUtilities.invokeLater(() -> {
+				DefaultMutableTreeNode toSelect = null;
+				root.removeAllChildren();
+				
+				for(PapaFile p : papafiles) {
+					DefaultMutableTreeNode n = addToTree(p);
+					if(p == selected)
+						toSelect = n;
+				}
+				
+				treeModel.reload();
+				if(toSelect!=null) {
+					select(new TreePath(toSelect.getPath()));
+				}
+			});
+		}
+
+		private DefaultMutableTreeNode[] getTopLevelNodes() {
+			ArrayList<DefaultMutableTreeNode> nodes = new ArrayList<DefaultMutableTreeNode>();
+			@SuppressWarnings("unchecked")
+			Enumeration<DefaultMutableTreeNode> e = root.children();
+			while(e.hasMoreElements())
+				nodes.add(e.nextElement());
+			return nodes.toArray(new DefaultMutableTreeNode[nodes.size()]);
 		}
 
 		public void selectedNodeChanged() {
@@ -1763,26 +1868,31 @@ public class Editor extends JFrame {
 			return null;
 		}
 		
-		public void addToTree(PapaFile p) {
+		public DefaultMutableTreeNode addToTree(PapaFile p) {
 			DefaultMutableTreeNode result = getNodeFromPapaFile(p,root);
 			if(result!=null) {
 				result = refreshEntry(result);
 				fileTree.setSelectionPath(new TreePath(result.getPath()));
 				requestFocus();
-				return;
+				return result;
 			}
-			addToTreeHelper(p);
+			return addToTreeHelper(p);
 		}
 		
-		private void addToTreeHelper(PapaFile p ) {
+		private DefaultMutableTreeNode addToTreeHelper(PapaFile p ) {
 			DefaultMutableTreeNode papaRoot = addToTree(p,root);
 			TreePath selected = new TreePath(papaRoot.getPath());
 			SwingUtilities.invokeLater(() -> {
 				treeModel.reload(root);
-				fileTree.setSelectionPath(selected);
-				fileTree.scrollPathToVisible(selected); 
-				treeScrollPane.getHorizontalScrollBar().setValue(0); // ensure that the left of the tree is always visible
-				});
+				select(selected);
+			});
+			return papaRoot;
+		}
+		
+		private void select(TreePath toSelect) {
+			fileTree.setSelectionPath(toSelect);
+			fileTree.scrollPathToVisible(toSelect); 
+			treeScrollPane.getHorizontalScrollBar().setValue(0); // ensure that the left of the tree is always visible
 		}
 		
 		private DefaultMutableTreeNode addToTree(PapaFile file, DefaultMutableTreeNode parent) { // potential crash if two files are linked to each other...
@@ -1802,7 +1912,7 @@ public class Editor extends JFrame {
 				papaRoot.add(linked);
 				treeModel.reload(linked);
 			} else {
-				if(file.getNumTextures()==1 && ! file.getTexture(0).isLinked())
+				if( ! alwaysShowRoot && file.getNumTextures()==1 && ! file.getTexture(0).isLinked())
 					papaRoot.setUserObject(file.getTexture(0));
 				else
 					for(int i =0;i<file.getNumTextures();i++)
@@ -2010,7 +2120,7 @@ public class Editor extends JFrame {
 		        	target = root;
 	        	else
 	        		target = (DefaultMutableTreeNode) dl.getPath().getLastPathComponent();
-		        
+		        try {
 	            PapaFile targetFile = getAssociatedPapaFile(target);
             	HashSet<DefaultMutableTreeNode> toReload;
             
@@ -2019,9 +2129,12 @@ public class Editor extends JFrame {
 	            	toReload = dropTargetPapa(target,targetFile,nodes);
 	            else
 	            	toReload = dropTargetGlobal(nodes);
-            	
+		        
 	            // I'm not sure why, but not invoking later will cause the JTree to incorrectly refresh leading to a crash.
 	            SwingUtilities.invokeLater(() -> toReload.forEach((n) -> refreshEntry(n)));
+		        } catch (Exception e) {
+		        	e.printStackTrace();
+		        }
 	            return true;
 	        }
 	        
@@ -2154,16 +2267,16 @@ public class Editor extends JFrame {
 	        private PapaTexture[] extract(PapaFile p, boolean rip) {
 	        	PapaTexture[] textures = getValidTextures(p);
 	        	for(int i =0;i<textures.length;i++) {
-	        		textures[i] = extract(textures[i],rip);
+        			textures[i] = extract(textures[i],rip);
 	        	}
 	        	return textures;
 	        }
 	        
 	        private PapaTexture[] getValidTextures(PapaFile p) {
 	        	ArrayList<PapaTexture> textures = new ArrayList<PapaTexture>();
-	        	for(int i = p.getNumTextures() - 1;i >=0 ;i--) {
+	        	for(int i = 0; i <p.getNumTextures(); i++) { //TODO: the order of this actually matters. Fundamental problems with detach...
 	        		PapaTexture t = p.getTexture(i);
-	        		if(t.isLinked() && !t.linkValid())
+	        		if(t.isLinked() && ! t.linkValid())
 	        			continue;
 	        		textures.add(t);
 	        	}
