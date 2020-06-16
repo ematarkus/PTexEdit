@@ -343,7 +343,7 @@ public class PapaFile extends PapaComponent{
 		for(PapaTexture t : textures) {
 			if(!t.isLinked())
 				continue;
-			if(t.getLinkedTexture().getParent()==other)
+			if(t.linkValid() && t.getLinkedTexture().getParent()==other)
 				count++;
 		}
 		return count;
@@ -387,7 +387,7 @@ public class PapaFile extends PapaComponent{
 			PapaTexture t = textures.get(i);
 			if(!t.isLinked())
 				continue;
-			if(t.getLinkedTexture().getParent() == other) {
+			if(t.linkValid() && t.getLinkedTexture().getParent() == other) {
 				textures.remove(i--);
 				change = true;
 				t.flush();

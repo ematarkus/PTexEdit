@@ -25,7 +25,6 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.io.IOException;
-import java.util.Arrays;
 
 import com.github.memo33.jsquish.Squish;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
@@ -1270,7 +1269,7 @@ public class PapaTexture extends PapaComponent{
 		if(copy.isLinked)
 			copy = copy.getLinkedTexture();
 		try {
-			return new PapaTexture(copy.name,copy.format,(byte) (copy.mips + 1), copy.srgb, copy.width,copy.height, Arrays.copyOf(copy.data, copy.data.length),null);
+			return new PapaTexture(copy.name,copy.format,(byte) (copy.mips + 1), copy.srgb, copy.width,copy.height, copy.data.clone(),null);
 		} catch (IOException e) {
 			e.printStackTrace(); // TODO maybe make this better
 		}
