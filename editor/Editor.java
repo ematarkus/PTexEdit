@@ -24,7 +24,6 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.tree.*;
 import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
 import javax.swing.event.*;
 
 import java.awt.*;
@@ -444,10 +443,14 @@ public class Editor extends JFrame {
 	private void setActiveFile(PapaFile p) {
 		PapaFile old = activeFile;
 		activeFile = p;
-		int index = configSection1.getActiveTextureIndex(activeFile);
-		menu.applySettings(activeFile,Math.max(0,index),old!=activeFile);
-		configSection1.applySettings(activeFile, Math.max(0,index), old != activeFile);
-		configSection2.applySettings(activeFile, Math.max(0,index), old != activeFile);
+		int index = Math.max(0, configSection1.getActiveTextureIndex(activeFile));
+		activeTexture = activeFile.getNumTextures()!=0 ? activeFile.getTexture(index) : null;
+		
+		boolean changed = old!=activeFile;
+		
+		menu.applySettings(activeFile, index, activeTexture ,changed);
+		configSection1.applySettings(activeFile, index, activeTexture ,changed);
+		configSection2.applySettings(activeFile, index, activeTexture ,changed);
 	}
 	
 	private void refreshActiveFile() {
@@ -616,9 +619,8 @@ public class Editor extends JFrame {
 			mToolsShowInFileBrowser.setEnabled(false);
 		}
 
-		public void applySettings(PapaFile activeFile, int index, boolean same) {
-			PapaTexture tex = activeFile.getTexture(index);
-			if(tex.isLinked() && ! tex.linkValid()) {
+		public void applySettings(PapaFile activeFile, int index, PapaTexture tex, boolean same) {
+			if(activeFile.getNumTextures() == 0 || tex == null || (tex.isLinked() && ! tex.linkValid())) {
 				unload();
 				return;
 			}
@@ -1285,11 +1287,11 @@ public class Editor extends JFrame {
 			return -1;
 		}
 		
-		public void applySettings(PapaFile pf, int image, boolean changed) {
+		public void applySettings(PapaFile pf, int image, PapaTexture tex, boolean changed) {
 			if(changed) {
 				setTextureCount(pf.getNumTextures());
 				spinnerImage.setValue(0);
-				if(pf.getNumTextures()==0) { // can only be true if we changed texture files
+				if(tex==null) { // can only be true if we changed texture files
 					spinnerImage.setEnabled(false);
 					spinnerMipmap.setEnabled(false);
 					imageName.setEnabled(false);
@@ -1317,20 +1319,25 @@ public class Editor extends JFrame {
 			}
 			
 			spinnerImage.setValue(image);
-			applySettings(pf.getTexture(image));
+			applySettings(tex);
 			
 		}
 		
 		private void applySettings(PapaTexture tex) {
 			PapaTexture t = tex;
+			boolean enable = tex!=null;
 			
-			spinnerMipmap.setEnabled(true);
-			imageName.setEnabled(true);
-			srgb.setEnabled(true);
-			resizeButton.setEnabled(true);
-			changeFormatButton.setEnabled(true);
+			spinnerMipmap.setEnabled(enable);
+			imageName.setEnabled(enable);
+			srgb.setEnabled(enable);
+			resizeButton.setEnabled(enable);
+			changeFormatButton.setEnabled(enable);
 			
 			imageName.setBorder(defaultButtonBorder);
+			if(!enable) {
+				imagePanel.unload();
+				return;
+			}
 			
 			if(t.isLinked()) {
 				spinnerMipmap.setEnabled(false);
@@ -1525,7 +1532,7 @@ public class Editor extends JFrame {
 		
 		private final Color defaultTextColour;
 		
-		private void applySettings(PapaFile pf, int image, boolean changed) {
+		private void applySettings(PapaFile pf, int image, PapaTexture tex, boolean changed) {
 			if(changed) {
 				versionValueLabel.setText(pf.getVersion());
 				if(pf.getFileSize()<1024)
@@ -1535,7 +1542,7 @@ public class Editor extends JFrame {
 				else
 					fileSizeValueLabel.setText(String.format("%.2f",(double)pf.getFileSize()/1048576d)+" MB");
 				imagesValueLabel.setText(""+pf.getNumTextures());
-				if(pf.getNumTextures()==0) {
+				if(tex==null) {
 					widthValueLabel.setText("");
 					heightValueLabel.setText("");
 					formatValueLabel.setText("");
@@ -1543,7 +1550,7 @@ public class Editor extends JFrame {
 					return;
 				}
 			}
-			applySettings(pf.getTexture(image));
+			applySettings(tex);
 		}
 		
 		private void applySettings(PapaTexture tex) {
@@ -1741,7 +1748,8 @@ public class Editor extends JFrame {
 				
 				treeModel.reload();
 				if(toSelect!=null) {
-					select(new TreePath(toSelect.getPath()));
+					TreePath path = new TreePath(toSelect.getPath());
+					select(path);
 				}
 			});
 		}
@@ -1882,10 +1890,8 @@ public class Editor extends JFrame {
 		private DefaultMutableTreeNode addToTreeHelper(PapaFile p ) {
 			DefaultMutableTreeNode papaRoot = addToTree(p,root);
 			TreePath selected = new TreePath(papaRoot.getPath());
-			SwingUtilities.invokeLater(() -> {
-				treeModel.reload(root);
-				select(selected);
-			});
+			treeModel.reload(root);
+			select(selected);
 			return papaRoot;
 		}
 		
@@ -2120,7 +2126,7 @@ public class Editor extends JFrame {
 		        	target = root;
 	        	else
 	        		target = (DefaultMutableTreeNode) dl.getPath().getLastPathComponent();
-		        try {
+
 	            PapaFile targetFile = getAssociatedPapaFile(target);
             	HashSet<DefaultMutableTreeNode> toReload;
             
@@ -2130,11 +2136,8 @@ public class Editor extends JFrame {
 	            else
 	            	toReload = dropTargetGlobal(nodes);
 		        
-	            // I'm not sure why, but not invoking later will cause the JTree to incorrectly refresh leading to a crash.
+	            // I'm not sure why, but not invoking later will cause the JTree to incorrectly refresh leading to a crash. (still true as of v0.2)
 	            SwingUtilities.invokeLater(() -> toReload.forEach((n) -> refreshEntry(n)));
-		        } catch (Exception e) {
-		        	e.printStackTrace();
-		        }
 	            return true;
 	        }
 	        
