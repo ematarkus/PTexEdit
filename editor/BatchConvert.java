@@ -22,9 +22,7 @@ package editor;
 import java.awt.Color;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
-import java.awt.event.ActionEvent;
-import java.awt.event.WindowEvent;
-import java.awt.event.WindowListener;
+import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -35,13 +33,11 @@ import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.event.ChangeEvent;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.text.DefaultCaret;
+import javax.swing.text.*;
 
-import editor.FileHandler.ImportInfo;
-import editor.FileHandler.ImportInterface;
+import editor.FileHandler.*;
 import editor.FileHandler.ImportInfo.ActivityListener;
-import papafile.PapaFile;
-import papafile.PapaTexture;
+import papafile.*;
 import papafile.PapaTexture.ImmutableTextureSettings;
 
 public class BatchConvert extends JDialog  {

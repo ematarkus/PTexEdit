@@ -552,6 +552,20 @@ public class FileHandler {
 		return imageFilters;
 	}
 	
+	public static FileNameExtensionFilter getImageFilter(String name) {
+		for(FileNameExtensionFilter f : imageFilters) {
+			if(f.getExtensions().length != 1)
+				continue;
+			if(f.getExtensions()[0].equals(name))
+				return f;
+		}
+		for(FileNameExtensionFilter f : imageFilters)
+			for(String s : f.getExtensions())
+				if(s.equals(name))
+					return f;
+		return null;
+	}
+	
 	public static FileNameExtensionFilter getPapaFilter() {
 		return papaFilter;
 	}

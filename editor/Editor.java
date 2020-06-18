@@ -693,7 +693,7 @@ public class Editor extends JFrame {
 				
 				j.setFileSelectionMode(JFileChooser.FILES_ONLY);
 				j.setAcceptAllFileFilterUsed(false);
-				j.setFileFilter(new FileNameExtensionFilter("Planetary Annihilation File (*.papa)", "papa"));
+				j.setFileFilter(FileHandler.getPapaFilter());
 				if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
 					File file = j.getSelectedFile();
 					readAll(file);
@@ -734,7 +734,10 @@ public class Editor extends JFrame {
 				j.setFileSelectionMode(JFileChooser.FILES_ONLY);
 				j.setAcceptAllFileFilterUsed(false);
 				j.setDialogTitle("Import File");
-				j.setFileFilter(FileHandler.getImageFilters()[0]);
+				
+				for(FileNameExtensionFilter f : FileHandler.getImageFilters())
+					j.addChoosableFileFilter(f);
+				
 				if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
 					File file = j.getSelectedFile();
 					readAll(file);
@@ -754,6 +757,8 @@ public class Editor extends JFrame {
 				j.setDialogTitle("Export File");
 				for(FileNameExtensionFilter f : FileHandler.getImageFilters())
 					j.addChoosableFileFilter(f);
+				
+				j.setFileFilter(FileHandler.getImageFilter("png"));
 				
 				if(activeFile.getFile()!=null)
 					j.setCurrentDirectory(activeFile.getFile());
