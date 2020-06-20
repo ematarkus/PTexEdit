@@ -25,6 +25,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+//import java.util.zip.*;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -102,11 +103,11 @@ public class FileHandler {
 	private static void readFilesInternal(File f, ImportInterface importInterface, ImportInfo info,boolean recursive, boolean wait) throws InterruptedException {
 		
 		info.resetStatistics();  // in case of reuse
-		ArrayList<File> toParse = getValidFiles(f, importInterface, info, recursive);
+		ArrayList<StreamableData> toParse = getValidInputs(f, importInterface, info, recursive);
 		info.setTotalFileCount(toParse.size());
 		
 		if(f.isDirectory()) {
-			if(! info.isInternalMode() && ! checkMassFiles(f,toParse,importInterface))
+			if(! info.isInternalMode() && ! checkMassInput(f,toParse,importInterface))
 				return;
 			info.setDirectoryMode();
 		} else {
@@ -114,7 +115,13 @@ public class FileHandler {
 				importInterface.rejectFile(f, info, f.getName()+" is not a"+(importInterface == IMAGE_INTERFACE ? "n ":" ")+importInterface.getType() + " file");
 		}
 		
-		toParse.stream().forEach((File f2) -> tasks.add(executor.submit(importInterface.getCallable(f2, info))));
+		toParse.stream().forEach((StreamableData sd) -> {
+			try {
+				tasks.add(executor.submit(importInterface.getCallable(sd.getStream(), sd.getFile(), info)));
+			} catch (IOException e1) {
+				throw new IllegalArgumentException(e1);
+			}
+		});
 		
 		if(wait || info.isDirectoryMode()) {
 			try {
@@ -161,9 +168,9 @@ public class FileHandler {
 		
 	}
 
-	private static ArrayList<File> getValidFiles(File f, ImportInterface importInterface, ImportInfo info, boolean recursive) throws InterruptedException {
+	private static ArrayList<StreamableData> getValidInputs(File f, ImportInterface importInterface, ImportInfo info, boolean recursive) throws InterruptedException {
 		try {
-			ArrayList<File> list = new ArrayList<File>();
+			ArrayList<StreamableData> list = new ArrayList<StreamableData>();
 			getValidFiles(list,f,importInterface, info,recursive);
 			return list;
 		} catch (InterruptedException e) {
@@ -171,9 +178,9 @@ public class FileHandler {
 		}
 	}
 	
-	private static void getValidFiles(ArrayList<File> list, File f, ImportInterface importInterface, ImportInfo info, boolean recursive) throws InterruptedException {
+	private static void getValidFiles(ArrayList<StreamableData> list, File f, ImportInterface importInterface, ImportInfo info, boolean recursive) throws InterruptedException {
 		
-		if(Thread.currentThread().isInterrupted())
+		if(Thread.interrupted())
 			throw new InterruptedException();
 		
 		if(f.isDirectory() && recursive) {
@@ -182,7 +189,7 @@ public class FileHandler {
 			for(File f2 : files)
 				getValidFiles(list,f2,importInterface, info, recursive);
 		} else if(importInterface.filter(f)) {
-			list.add(f);
+			list.add(new StreamableFile(f));
 			info.activityListener.onFoundAcceptableFile(f, list.size());
 		}
 		
@@ -203,7 +210,7 @@ public class FileHandler {
 		initializeThreadPool();
 	}
 	
-	private static boolean checkMassFiles(File source, ArrayList<File> files, ImportInterface importInterface) {
+	private static boolean checkMassInput(File source, ArrayList<StreamableData> files, ImportInterface importInterface) {
 		int count = files.size();
 		if(count > 100) {
 			synchronized(lock) {
@@ -233,18 +240,20 @@ public class FileHandler {
 		}
 
 		@Override
-		public Callable<Void> getCallable(File file, ImportInfo info) {
+		public Callable<Void> getCallable(InputStream stream, File file, ImportInfo info) {
 			return new Callable<Void>() {
 				@Override
-				public Void call() {
+				public Void call() throws Exception{
 					info.onStartProcessFile(file, Thread.currentThread().getName());
 					String path = file.getPath();
 					PapaFile papaFile;
 					try {
-						papaFile = new PapaFile(path);
+						papaFile = new PapaFile(stream, path);
 					} catch (IOException e) {
 						rejectFile(file, info, e.getMessage());
 						return null;
+					} finally {
+						stream.close();
 					}
 					
 					if(papaFile.getNumTextures()==0) {
@@ -279,7 +288,7 @@ public class FileHandler {
 		}
 
 		@Override
-		public Callable<Void> getCallable(File file, ImportInfo info) {
+		public Callable<Void> getCallable(InputStream stream, File file, ImportInfo info) {
 			return new Callable<Void>() {
 				@Override
 				public Void call() throws Exception {
@@ -299,7 +308,7 @@ public class FileHandler {
 					}
 					
 					try {
-						b = ImageIO.read(file);
+						b = ImageIO.read(stream);
 						PapaTexture t = new PapaTexture(b, info.getTextureSettings(), null, file.getName());
 						if(link)
 							p.generateLinkedTexture(t);
@@ -310,6 +319,8 @@ public class FileHandler {
 						e.printStackTrace();
 						rejectFile(file, info, e.getClass().getName()+": "+e.getMessage());
 						return null;
+					} finally {
+						stream.close();
 					}
 					
 					info.accept(file, p);
@@ -327,7 +338,7 @@ public class FileHandler {
 	
 	public static abstract class ImportInterface {
 		public abstract boolean filter(File file);
-		public abstract Callable<Void> getCallable(File file, ImportInfo info);
+		public abstract Callable<Void> getCallable(InputStream stream, File input, ImportInfo info);
 		public abstract String getType();
 		public final void rejectFile(File file, ImportInfo info, String reason) {
 			info.reject(file, reason);
@@ -441,6 +452,63 @@ public class FileHandler {
 			public abstract void onRejectFile(File f, String reason);
 		}
 	}
+	
+	private static abstract class StreamableData {
+		public abstract File getFile();
+		public abstract InputStream getStream() throws IOException;
+	}
+	
+	private static class StreamableFile extends StreamableData {
+		private final File input;
+		
+		public StreamableFile(File f) {
+			input = f;
+		}
+		
+		@Override
+		public InputStream getStream() throws FileNotFoundException {
+			return new FileInputStream(input);
+		}
+
+		@Override
+		public File getFile() {
+			return input;
+		}
+		
+	}
+	
+	/*private static class StreamableZipEntry extends StreamableData { //TODO: this currently causes a memory leak as nothing ever closes the zipFile
+	 // fixing would require that a reference to the zip file is to be stored and returned, then closed when the method ends
+		private final File input;
+		private final ZipFile zipFile;
+		private final ZipEntry entry;
+		
+		public StreamableZipFile(File path, ZipFile file, ZipEntry entry) {
+			this.input = path;
+			this.zipFile = file;
+			this.entry = entry;
+		}
+
+		@Override
+		public File getFile() {
+			return input;
+		}
+
+		@Override
+		public InputStream getStream() throws IOException {
+			return zipFile.getInputStream(entry);
+		}
+	}
+	
+	Zip has no file heirarchy in java,  all entries are at the root.
+	names of zip entries in PTexEdit zip file (with extra new folder + license copy):
+	PTexEdit/LICENSE
+	PTexEdit/LICENSE-3RD-PARTY
+	PTexEdit/New folder/
+	PTexEdit/New folder/LICENSE
+	PTexEdit/PTexEdit.jar
+	
+	*/
 	
 	public static boolean checkIsInPA(File f) {
 		try {

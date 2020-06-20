@@ -1844,7 +1844,7 @@ public class Editor extends JFrame {
 						this.setIcon(imgPapafileLinked);
 					else
 						this.setIcon(imgPapafile);
-				} else if (o instanceof PapaTexture) { 
+				} else if (o instanceof PapaTexture) {
 					PapaTexture p = (PapaTexture) o;
 					this.setText(p.getName());
 					if(p.getParent().isLinkedFile() && !p.getParent().getParent().isLinkedFileReferenced(p.getParent()))
