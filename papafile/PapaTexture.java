@@ -25,6 +25,9 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
 
 import com.github.memo33.jsquish.Squish;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
@@ -243,10 +246,11 @@ public class PapaTexture extends PapaComponent{
 		this.height = height;
 		this.parent = p;
 		
-		ByteReader br = new ByteReader(data);
+		ByteBuffer buf = ByteBuffer.wrap(data);
+		buf.order(ByteOrder.LITTLE_ENDIAN);
 		textureConverter = getInstance(getFormat());
 		
-		decodeAll(new TextureInfo(this.mips,this.width,this.height),br, textureConverter);
+		decodeAll(new TextureInfo(this.mips,this.width,this.height), buf, textureConverter);
 		
 		System.out.println("Loaded "+this.width+" by "+this.height+" image named "+this.name+" of format "+getFormat()+" with "+this.mips+" mipmaps. Data size: "+data.length+".");
 	}
@@ -303,14 +307,15 @@ public class PapaTexture extends PapaComponent{
 		this.name = name;
 		this.format = textureConverter.formatIndex();
 		this.mips = (byte) mipCount;
-		this.numImages = mips;
+		this.numImages = mips + 1;
 		this.srgb = settings.SRGB;
 		this.width = (short) width;
 		this.height = (short) height;
 		
 		this.data = textureConverter.encode(images);
-		ByteReader br = new ByteReader(data);
-		decodeAll(new TextureInfo(mipCount, width, height),br,textureConverter);
+		ByteBuffer buf = ByteBuffer.wrap(data);
+		buf.order(ByteOrder.LITTLE_ENDIAN);
+		decodeAll(new TextureInfo(mipCount, width, height),buf,textureConverter);
 	}
 	
 	private boolean testPowerOfTwo(int value) {
@@ -378,23 +383,23 @@ public class PapaTexture extends PapaComponent{
 		}
 	}
 	
-	private void decodeAll(TextureInfo info, ByteReader br, Converter converter) throws IOException {
+	private void decodeAll(TextureInfo info, ByteBuffer buf, Converter converter) throws IOException {
 		
-		checkData(info,br,converter);
+		checkData(info,buf,converter);
 		
-		this.textures[0] = converter.decode(br, info);
+		this.textures[0] = converter.decode(buf, info);
 		for(int i=1;i<=info.mips;i++) {
 			
 			int mipScale = (int) Math.pow(2, i);
 			int width = Math.max(info.width / mipScale,1);
 			int height = Math.max(info.height / mipScale,1);
-			this.textures[i] = converter.decode(br, new TextureInfo(info.mips,width,height));
+			this.textures[i] = converter.decode(buf, new TextureInfo(info.mips,width,height));
 		}
 	}
 	
-	private void checkData(TextureInfo info, ByteReader br, Converter converter) throws IOException {
+	private void checkData(TextureInfo info, ByteBuffer buf, Converter converter) throws IOException {
 		int expectedSize = converter.calcSize(info.width, info.height, info.mips);
-		int actualSize = br.size();
+		int actualSize = buf.limit();
 		if(actualSize != expectedSize)
 			throw new IOException("Data size of "+actualSize+" bytes does not match expected size of " + expectedSize+" bytes");
 	}
@@ -403,25 +408,27 @@ public class PapaTexture extends PapaComponent{
 	@Override
 	protected void build() {
 		byte[] headerBytes = new byte[headerSize()];
-		header = new ByteWriter(headerBytes);
+		header = ByteBuffer.wrap(headerBytes);
+		header.order(ByteOrder.LITTLE_ENDIAN);
 		
-		super.data = new ByteWriter(this.data);
+		super.data = ByteBuffer.wrap(this.data);
+		super.data.order(ByteOrder.LITTLE_ENDIAN);
 		
 		int nameIndex = parent.getOrMakeString(this.name);
-		header.write((short)nameIndex);
-		header.write((byte)this.format);
-		header.write((byte)(((this.mips + 1) & 0b0111_1111) | (srgb ? 0b1000_0000 : 0)));
-		header.write((short)this.width);
-		header.write((short)this.height);
-		header.write((long)super.data.getSize());
+		header.putShort((short)nameIndex);
+		header.put((byte)this.format);
+		header.put((byte)(((this.mips + 1) & 0b0111_1111) | (srgb ? 0b1000_0000 : 0)));
+		header.putShort((short)this.width);
+		header.putShort((short)this.height);
+		header.putLong((long)super.data.limit());
 	}
 
 	@Override
 	protected void applyOffset(int offset) {
 		if(isLinked)
-			header.write(-1l);
+			header.putLong(-1l);
 		else
-			header.write((long)offset);
+			header.putLong((long)offset);
 	}
 
 	@Override
@@ -462,20 +469,21 @@ public class PapaTexture extends PapaComponent{
 	
 	private abstract class Converter {
 		
-		public abstract BufferedImage decode(ByteReader br, TextureInfo info);
+		public abstract BufferedImage decode(ByteBuffer buf, TextureInfo info);
 		
 		public abstract int calcSize(int width, int height, int mips);
 		
 		public abstract byte formatIndex();
 		
-		protected abstract void encodeImage(BufferedImage input, ByteWriter writer);
+		protected abstract void encodeImage(BufferedImage input, ByteBuffer writer);
 		
 		public byte[] encode(BufferedImage[] input) {
 			int images = input.length;
 			int width = input[0].getWidth();
 			int height = input[0].getHeight();
 			byte[] buf = new byte[calcSize(width,height,images - 1)];
-			ByteWriter b = new ByteWriter(buf);
+			ByteBuffer b = ByteBuffer.wrap(buf);
+			b.order(ByteOrder.LITTLE_ENDIAN);
 			for(int i=0;i<images;i++)
 				encodeImage(input[i],b);
 			return buf;
@@ -542,7 +550,7 @@ public class PapaTexture extends PapaComponent{
 	private class R8G8B8A8 extends Converter {
 
 		@Override
-		public BufferedImage decode(ByteReader br, TextureInfo info) {
+		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
 			int width = info.width;
 			int height = info.height;
 			int length = width*height;
@@ -552,10 +560,10 @@ public class PapaTexture extends PapaComponent{
 			int[] array = new int[width*height];
 			for(int i = 0;i<length;i++) {
 				int tmp=0;
-				tmp |=br.read()<<16;
-				tmp |=br.read()<<8;
-				tmp |=br.read();
-				tmp |=br.read()<<24;
+				tmp |=(buf.get() & 0b11111111)<<16;
+				tmp |=(buf.get() & 0b11111111)<<8;
+				tmp |=(buf.get() & 0b11111111);
+				tmp |=(buf.get() & 0b11111111)<<24;
 				array[i] = tmp;
 			}
 			b.setRGB(0, 0, width, height, array, 0, width);
@@ -563,15 +571,15 @@ public class PapaTexture extends PapaComponent{
 		}
 		
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			int[] rgbArray = input.getRGB(0, 0, width, height, null, 0, input.getWidth());
 			for(int i : rgbArray) {// ARGB -> RGBA
-				writer.write((byte)(i>>>16));
-				writer.write((byte)(i>>>8));
-				writer.write((byte)(i));
-				writer.write((byte)(i>>>24));
+				writer.put((byte)(i>>>16));
+				writer.put((byte)(i>>>8));
+				writer.put((byte)(i));
+				writer.put((byte)(i>>>24));
 			}
 		}
 		
@@ -598,15 +606,15 @@ public class PapaTexture extends PapaComponent{
 	private class R8G8B8X8 extends R8G8B8A8 {
 		
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			int[] rgbArray = input.getRGB(0, 0, width, height, null, 0, input.getWidth());
 			for(int i : rgbArray) {// ARGB -> RRGB
-				writer.write((byte)(i>>>16));
-				writer.write((byte)(i>>>8));
-				writer.write((byte)(i));
-				writer.write((byte)0xff);
+				writer.put((byte)(i>>>16));
+				writer.put((byte)(i>>>8));
+				writer.put((byte)(i));
+				writer.put((byte)0xff);
 			}
 		}
 		
@@ -625,7 +633,7 @@ public class PapaTexture extends PapaComponent{
 	private class B8G8R8A8 extends R8G8B8A8 {
 
 		@Override
-		public BufferedImage decode(ByteReader br, TextureInfo info) {
+		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
 			int width = info.width;
 			int height = info.height;
 			int length = width*height;
@@ -634,7 +642,7 @@ public class PapaTexture extends PapaComponent{
 			
 			int[] array = new int[width*height];
 			for(int i = 0;i<length;i++) {
-				array[i] = br.read(4);
+				array[i] = buf.getInt();
 			}
 			
 			b.setRGB(0, 0, width, height, array, 0, width);
@@ -643,15 +651,15 @@ public class PapaTexture extends PapaComponent{
 		}
 		
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			int[] rgbArray = input.getRGB(0, 0, width, height, null, 0, input.getWidth());
 			for(int i : rgbArray) {// ARGB -> BGRA
-				writer.write((byte)i);
-				writer.write((byte)(i>>>8));
-				writer.write((byte)(i>>>16));
-				writer.write((byte)(i>>>24));
+				writer.put((byte)i);
+				writer.put((byte)(i>>>8));
+				writer.put((byte)(i>>>16));
+				writer.put((byte)(i>>>24));
 			}
 		}
 		@Override
@@ -735,7 +743,7 @@ public class PapaTexture extends PapaComponent{
 		
 		
 		@Override
-		public BufferedImage decode(ByteReader br, TextureInfo info) {
+		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
 			Color [] colours;
 		
 			int width = info.width;
@@ -743,6 +751,7 @@ public class PapaTexture extends PapaComponent{
 			
 			int widthAssign = Math.min(4, width);
 			int heightAssign = Math.min(4, height);
+			byte[] colourBuffer = new byte[4];
 			
 			
 			BufferedImage b = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
@@ -750,10 +759,11 @@ public class PapaTexture extends PapaComponent{
 			//64 bits per 4x4 segment
 			for(int y = 0;y<height;y+=4) {
 				for(int x =0;x<width;x+=4) {
-
-					colours = decodeColourMap(br.readBytes(4));
+					
+					buf.get(colourBuffer);
+					colours = decodeColourMap(colourBuffer);
 					// 4x4 segment
-					int bits = br.read(4);
+					int bits = buf.getInt();
 					for(int yy=0;yy<heightAssign;yy++) {
 						for(int xx=0;xx<widthAssign;xx++) {
 							int colourIndex = (int) (bits & 0b11);
@@ -769,12 +779,12 @@ public class PapaTexture extends PapaComponent{
 		
 		
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			byte[] in = imageToByteArray(input);
 			byte[] result = Squish.compressImage(in, width, height, new byte[] {}, CompressionType.DXT1, method);
-			writer.write(result);
+			writer.put(result);
 		}
 
 		@Override
@@ -800,11 +810,13 @@ public class PapaTexture extends PapaComponent{
 		{chunkByteSize = 16;}
 		
 		@Override
-		public BufferedImage decode(ByteReader br, TextureInfo info) {
+		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
 			Color [] colours;
 			int[] alphaValues;
 			int width = info.width;
 			int height = info.height;
+			byte[] alphaBuf = new byte[8];
+			byte[] colourBuf = new byte[4];
 			
 			int widthAssign = Math.min(4, width);
 			int heightAssign = Math.min(4, height);
@@ -816,11 +828,12 @@ public class PapaTexture extends PapaComponent{
 				for(int x =0;x<width;x+=4) {
 					//if(br.index() + 8 > br.size()) // DXT3 is broken for papatran, break early if we run out of data
 						//return b;
+					buf.get(alphaBuf);
+					alphaValues = decodeAlphaMap(alphaBuf);
 					
-					alphaValues = decodeAlphaMap(br.readBytes(8));
-						
-					colours = decodeColourMap(br.readBytes(4));
-					int bits = br.read(4);
+					buf.get(colourBuf);
+					colours = decodeColourMap(colourBuf);
+					int bits = buf.getInt();
 					for(int yy=0;yy<heightAssign;yy++) {
 						for(int xx=0;xx<widthAssign;xx++) {
 							int colourIndex = (int) (bits & 0b11);
@@ -835,12 +848,12 @@ public class PapaTexture extends PapaComponent{
 		}
 		
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			byte[] in = imageToByteArray(input);
 			byte[] result = Squish.compressImage(in, width, height, new byte[] {}, CompressionType.DXT3, method);
-			writer.write(result);
+			writer.put(result);
 		}
 
 		
@@ -888,7 +901,7 @@ public class PapaTexture extends PapaComponent{
 		{chunkByteSize = 16;}
 		
 		@Override
-		public BufferedImage decode(ByteReader br, TextureInfo info) {
+		public BufferedImage decode(ByteBuffer br, TextureInfo info) {
 			Color [] colours;
 			int[] alphaValues;
 			int width = info.width;
@@ -896,6 +909,8 @@ public class PapaTexture extends PapaComponent{
 			
 			int widthAssign = Math.min(4, width);
 			int heightAssign = Math.min(4, height);
+			byte[] alphaBuf = new byte[8];
+			byte[] colourBuf = new byte[4];
 			
 			BufferedImage b = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 			
@@ -904,10 +919,13 @@ public class PapaTexture extends PapaComponent{
 				for(int x =0;x<width;x+=4) {
 					
 					// calculate and store the alpha values for the pixel.
-					alphaValues = decodeAlphaMap(br.readBytes(8));
-					colours = decodeColourMap(br.readBytes(4));
+					br.get(alphaBuf);
+					alphaValues = decodeAlphaMap(alphaBuf);
 					
-					int bits = br.read(4);
+					br.get(colourBuf);
+					colours = decodeColourMap(colourBuf);
+					
+					int bits = br.getInt();
 					for(int yy=0;yy<heightAssign;yy++) {
 						for(int xx=0;xx<widthAssign;xx++) {
 							int colourIndex = (int) (bits & 0b11);
@@ -922,12 +940,12 @@ public class PapaTexture extends PapaComponent{
 		}
 
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			byte[] in = imageToByteArray(input);
 			byte[] result = Squish.compressImage(in, width, height, new byte[] {}, CompressionType.DXT5, method);
-			writer.write(result);
+			writer.put(result);
 		}
 		
 		@Override
@@ -970,7 +988,7 @@ public class PapaTexture extends PapaComponent{
 	private class R8 extends Converter {
 
 		@Override
-		public BufferedImage decode(ByteReader br, TextureInfo info) {
+		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
 			int width = info.width;
 			int height = info.height;
 			int length = width*height;
@@ -979,7 +997,7 @@ public class PapaTexture extends PapaComponent{
 			
 			int[] array = new int[width*height];
 			for(int i = 0;i<length;i++) {
-				array[i] = br.read()<<16 | 0b11111111_00000000_11111111_11111111;
+				array[i] = buf.get()<<16 | 0b11111111_00000000_11111111_11111111;
 			}
 			
 			b.setRGB(0, 0, width, height, array, 0, width);
@@ -988,12 +1006,12 @@ public class PapaTexture extends PapaComponent{
 		}
 
 		@Override
-		protected void encodeImage(BufferedImage input, ByteWriter writer) {
+		protected void encodeImage(BufferedImage input, ByteBuffer writer) {
 			int width = input.getWidth();
 			int height = input.getHeight();
 			int[] rgbArray = input.getRGB(0, 0, width, height, null, 0, input.getWidth());
 			for(int i : rgbArray) {// ARGB
-				writer.write((byte)(i>>>16));
+				writer.put((byte)(i>>>16));
 			}
 		}
 		
@@ -1271,12 +1289,62 @@ public class PapaTexture extends PapaComponent{
 		try {
 			return new PapaTexture(copy.name,copy.format,(byte) (copy.mips + 1), copy.srgb, copy.width,copy.height, copy.data.clone(),null);
 		} catch (IOException e) {
-			e.printStackTrace(); // TODO maybe make this better
+			throw new IllegalStateException(e);
 		}
-		return null;
 	}
 	
 	@Override
 	protected void overwriteHelper(PapaComponent other) {// TODO
+		PapaTexture tex = (PapaTexture) other;
+		checkLinked(false);
+		tex.checkLinked(false);
+		
+		this.textures = tex.textures;
+		this.red=tex.red;
+		this.green=tex.green;
+		this.blue=tex.blue;
+		this.alpha=tex.alpha;
+		this.data = tex.data;
+		this.width = tex.width;
+		this.height = tex.height;
+		this.srgb = tex.srgb;
+		this.format = tex.format;
+		this.mips = tex.mips;
+		this.numImages = tex.numImages;
+		this.textureConverter = tex.textureConverter;
+	}
+
+	@Override
+	public PapaComponent[] getDependencies() {
+		ArrayList<PapaComponent> dependencies = new ArrayList<PapaComponent>();
+		if(isLinked() && linkValid()) {
+			dependencies.add(getLinkedTexture());
+			dependencies.add(getLinkedTexture().getParent());
+		}
+		int index = getParent().getOrMakeString(name);
+		dependencies.add(getParent().getString(index));
+		return dependencies.toArray(new PapaComponent[dependencies.size()]);
+	}
+
+	@Override
+	public PapaComponent[] getDependents() {
+		if(getParent()==null)
+			return new PapaComponent[0];
+		return getParent().getAllDependentsFor(this);
+	}
+
+	@Override
+	protected boolean isDependentOn(PapaComponent other) {
+		if(other==null)
+			return false;
+		if(other.getClass()==PapaString.class)
+			return ((PapaString)other).getValue().equals(name);
+		if(isLinked() && linkValid()) {
+			if(other.getClass()==PapaTexture.class)
+				return getLinkedTexture() == other;
+			if(other.getClass()==PapaFile.class)
+				return getLinkedTexture().getParent() == other;
+		}
+		return false;
 	}
 }

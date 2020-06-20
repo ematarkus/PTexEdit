@@ -20,13 +20,12 @@
 package papafile;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.io.*;
+import java.nio.BufferUnderflowException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 
 import javax.imageio.ImageIO;
 
@@ -123,7 +122,7 @@ public class PapaFile extends PapaComponent{
 		}
 	}
 	
-	private RandomAccessFile in;
+	private ByteBuffer in;
 	
 	private static PapaFile readLinkedFile(String fullPath, PapaFile parent) throws IOException{
 		PapaFile p = new PapaFile(fullPath);
@@ -147,12 +146,25 @@ public class PapaFile extends PapaComponent{
 		fileSize = calcFileSize();
 	}
 	
-	public PapaFile(String path, int flags) throws IOException {
-		instantiate(path, flags);
+	private InputStream getStream(String path) throws IOException {
+		File f = new File(path);
+		return new FileInputStream(f);
 	}
 	
+	public PapaFile(String path, int flags) throws IOException {
+		instantiate(getStream(path), path, flags);
+	}
+
 	public PapaFile(String path) throws IOException {
-		instantiate(path, ALL);
+		instantiate(getStream(path), path, ALL);
+	}
+	
+	public PapaFile(InputStream stream, String path, int flags) throws IOException {
+		instantiate(stream, path, flags);
+	}
+	
+	public PapaFile(InputStream stream, String path) throws IOException {
+		instantiate(stream, path, ALL);
 	}
 	
 	public void setFileLocation(File newLocation) {
@@ -334,6 +346,10 @@ public class PapaFile extends PapaComponent{
 		recalculateFileSize();
 	}
 	
+	public PapaString getString(int index) {  // it is unwise to use this method directly unless you know what you're doing. Strings are highly volatile.
+		return strings.get(index);
+	}
+	
 	public boolean isLinkedFileReferenced(PapaFile other) {
 		return getReferencesToLinkedFile(other)!=0;
 	}
@@ -418,20 +434,20 @@ public class PapaFile extends PapaComponent{
 		return parentFile.getTopParentFileHelper();
 	}
 	
-	private void instantiate(String path, int flags) throws IOException {
-		
-		File f = new File(path);
-		if(!f.exists())
-			throw new IOException("File "+f.getPath()+" not found.");
-		if(f.isDirectory())
-			throw new IOException("File "+f.getPath()+" is a directory.");
-		
-		setFileLocation(f);
-		
+	private void instantiate(InputStream stream, String path, int flags) throws IOException {
 		try {
-			in = new RandomAccessFile(f, "r"); // reads big endian
+			File f = new File(path);
+			/*if( ! f.exists())
+				throw new IOException("File "+f.getPath()+" not found.");
+			if(f.isDirectory())
+				throw new IOException("File "+f.getPath()+" is a directory.");*/
+			setFileLocation(f);
+		
+			byte[] fileData = readStream(stream);
+			in = ByteBuffer.wrap(fileData);
+			in.order(ByteOrder.LITTLE_ENDIAN);
 			
-			fileSize = in.length();
+			fileSize = in.limit();
 			
 			if(fileSize < 4)
 				throw new IOException("File is empty"); // prevent null error
@@ -451,53 +467,71 @@ public class PapaFile extends PapaComponent{
 			//readAnimations(in);
 		} catch (IOException e) {
 			throw e;
+		} catch (BufferUnderflowException b) {
+			throw new IOException(b);
 		} finally {
-			in.close();
+			in.clear();
+			in = null;
+			stream.close();
 		}
 	}
 	
+	private byte[] readStream(InputStream stream) throws IOException {
+		int available = stream.available();
+		int dataSize = 0;
+		byte[] buf = new byte[Math.max(available,1024)];
+		ByteArrayOutputStream bos = new ByteArrayOutputStream(available);
+		
+		while(true) {
+			dataSize = stream.read(buf);
+			if(dataSize==-1)
+				return bos.toByteArray();
+			bos.write(buf, 0, dataSize);
+		}
+	}
+
 	private boolean papaFileContains(int flags) {
 		return true; //TODO
 	}
 	
-	private void readHeader(RandomAccessFile in) throws IOException {
-		signature = PapaFile.changeEndian(in.readInt());
+	private void readHeader(ByteBuffer in) throws IOException {
+		signature = in.getInt();
 		
 		if(signature != (0x50<<24 | 0x61<<16 | 0x70<<8 | 0x61))
 			throw new IOException("File signature does not match Papa specification.");
 		
-		minorVersion = 	PapaFile.changeEndian(in.readShort());
-		majorVersion = 	PapaFile.changeEndian(in.readShort());
+		minorVersion = 	in.getShort();
+		majorVersion = 	in.getShort();
 		
-		numStrings = 	PapaFile.changeEndian(in.readShort());
-		numTextures = 	PapaFile.changeEndian(in.readShort());
-		numVBuffers = 	PapaFile.changeEndian(in.readShort());
-		numIBuffers = 	PapaFile.changeEndian(in.readShort());
+		numStrings = 	in.getShort();
+		numTextures = 	in.getShort();
+		numVBuffers = 	in.getShort();
+		numIBuffers = 	in.getShort();
 		
-		numMaterials = 	PapaFile.changeEndian(in.readShort());
-		numMeshes = 	PapaFile.changeEndian(in.readShort());
-		numSkeletons = 	PapaFile.changeEndian(in.readShort());
-		numModels = 	PapaFile.changeEndian(in.readShort());
+		numMaterials = 	in.getShort();
+		numMeshes = 	in.getShort();
+		numSkeletons = 	in.getShort();
+		numModels = 	in.getShort();
 		
-		numAnimations = PapaFile.changeEndian(in.readShort());
+		numAnimations = in.getShort();
 		
 		// padding 3
-		in.readShort();
-		in.readShort();
-		in.readShort();
+		in.getShort();
+		in.getShort();
+		in.getShort();
 		
-		offsetStringTable = 	PapaFile.changeEndian(in.readLong());
-		offsetTextureTable = 	PapaFile.changeEndian(in.readLong());
-		offsetVBufferTable = 	PapaFile.changeEndian(in.readLong());
-		offsetIBufferTable = 	PapaFile.changeEndian(in.readLong());
-		offsetMaterialTable = 	PapaFile.changeEndian(in.readLong());
-		offsetMeshTable = 		PapaFile.changeEndian(in.readLong());
-		offsetSkeletonTable = 	PapaFile.changeEndian(in.readLong());
-		offsetModelTable = 		PapaFile.changeEndian(in.readLong());
-		offsetAnimationTable = 	PapaFile.changeEndian(in.readLong());
+		offsetStringTable = 	in.getLong();
+		offsetTextureTable = 	in.getLong();
+		offsetVBufferTable = 	in.getLong();
+		offsetIBufferTable = 	in.getLong();
+		offsetMaterialTable = 	in.getLong();
+		offsetMeshTable = 		in.getLong();
+		offsetSkeletonTable = 	in.getLong();
+		offsetModelTable = 		in.getLong();
+		offsetAnimationTable = 	in.getLong();
 	}
 	
-	private void readStrings(RandomAccessFile in) throws IOException {
+	private void readStrings(ByteBuffer in) throws IOException {
 		if (numStrings == 0)
 			return;
 		
@@ -505,22 +539,22 @@ public class PapaFile extends PapaComponent{
 		int[] padding = new int[numStrings];
 		long[] offset = new long[numStrings];
 		
-		in.seek(offsetStringTable);
+		in.position((int) offsetStringTable);
 		
 		for(int i =0;i<numStrings;i++) {
-			length[i] = 	changeEndian(in.readInt());
-			padding[i] = 	changeEndian(in.readInt());
-			offset[i] = 	changeEndian(in.readLong());
+			length[i] = 	in.getInt();
+			padding[i] = 	in.getInt();
+			offset[i] = 	in.getLong();
 			
 			if(padding[i] != 0)
 				throw new IOException("Padding is not zero.");
 		}
 		
 		for(int i=0;i<numStrings;i++) {
-			in.seek(offset[i]);
+			in.position((int) offset[i]);
 			
 			byte[] buf = new byte[length[i]];
-			in.read(buf);
+			in.get(buf);
 			
 			String s = new String(buf);
 			
@@ -528,10 +562,10 @@ public class PapaFile extends PapaComponent{
 		}
 	}
 	
-	private void readTextures(RandomAccessFile in) throws IOException {
+	private void readTextures(ByteBuffer in) throws IOException {
 		if(numTextures == 0)
 			return;
-		in.seek(offsetTextureTable);
+		in.position((int) offsetTextureTable);
 		
 		short[] nameIndex = new short[numTextures];
 		byte[] format = 	new byte[numTextures];
@@ -543,22 +577,22 @@ public class PapaFile extends PapaComponent{
 		long[] offset = 	new long[numTextures];
 		
 		for(int i =0;i<numTextures;i++) {
-			nameIndex[i] = 	changeEndian(in.readShort());
-			format[i] = 	in.readByte();
-			byte input = 	in.readByte();
+			nameIndex[i] = 	in.getShort();
+			format[i] = 	in.get();
+			byte input = 	in.get();
 			mips[i] = 		(byte) (input&0b0111_1111);
 			srgb[i] = 		(input & 0b1000_0000)==0b1000_0000;
-			width[i] = 		changeEndian(in.readShort());
-			height[i] = 	changeEndian(in.readShort());
-			size[i] = 		changeEndian(in.readLong());
-			offset[i] = 	changeEndian(in.readLong());
+			width[i] = 		in.getShort();
+			height[i] = 	in.getShort();
+			size[i] = 		in.getLong();
+			offset[i] = 	in.getLong();
 		}
 		
 		for(int i=0;i<numTextures;i++) {
 			if(offset[i] >=0) {
-				in.seek(offset[i]);
+				in.position((int) offset[i]);
 				byte[] buf = new byte[(int) size[i]];
-				in.read(buf);
+				in.get(buf);
 				
 				textures.add(new PapaTexture(strings.get(nameIndex[i]).getValue(), format[i],
 											mips[i], srgb[i], width[i], height[i], buf, this));
@@ -603,32 +637,35 @@ public class PapaFile extends PapaComponent{
 	public void build() {
 		validateAll();
 		byte[] bytes = new byte[calcFileSize()];
-		ByteWriter fileBytes = new ByteWriter(bytes);
-		fileBytes.seek(HEADER_SIZE);
+		ByteBuffer fileBytes = ByteBuffer.wrap(bytes);
+		fileBytes.order(ByteOrder.LITTLE_ENDIAN);
+		fileBytes.position(HEADER_SIZE);
 		
 		byte[] header = new byte[PapaFile.HEADER_SIZE];
-		ByteWriter headerBuilder = new ByteWriter(header);
+		ByteBuffer headerBuilder = ByteBuffer.wrap(header);
+		headerBuilder.order(ByteOrder.LITTLE_ENDIAN);
 		buildHeader(headerBuilder);
 		
-		int offsetIndex = headerBuilder.index();
+		int offsetIndex = headerBuilder.position();
 		for(int i =0;i<9;i++)
-			headerBuilder.write((long)-1);
-		headerBuilder.seek(offsetIndex + 8);
+			headerBuilder.putLong((long)-1);
+		headerBuilder.position(offsetIndex + 8);
 		
 		// write all but strings
 		for(int i=1;i<components.length;i++) {
-			headerBuilder.write((long)fileBytes.index());
+			headerBuilder.putLong((long)fileBytes.position());
 			buildComponent(components[i], fileBytes);
 		}
 		
 		// write strings
-		headerBuilder.seek(offsetIndex);
-		headerBuilder.write((long)fileBytes.index());
+		headerBuilder.position(offsetIndex);
+		headerBuilder.putLong((long)fileBytes.position());
 		buildComponent(components[0], fileBytes);
 		
-		fileBytes.writeTo(header, 0);
+		fileBytes.position(0);
+		fileBytes.put(header);
 		
-		this.fileBytes = fileBytes.getData();
+		this.fileBytes = fileBytes.array();
 	}
 	
 	private int calcFileSize() {
@@ -657,14 +694,14 @@ public class PapaFile extends PapaComponent{
 			p.validate();
 	}
 	
-	private void buildHeader(ByteWriter b) {
+	private void buildHeader(ByteBuffer b) {
 		
-		b.write("apaP");
-		b.write((short)minorVersion);
-		b.write((short)majorVersion);
+		b.put("apaP".getBytes());
+		b.putShort((short)minorVersion);
+		b.putShort((short)majorVersion);
 		
-		b.write((short)numStrings);
-		b.write((short)numTextures);
+		b.putShort((short)numStrings);
+		b.putShort((short)numTextures);
 		/*b.write((short)numVBuffers);
 		b.write((short)numIBuffers);
 		
@@ -674,19 +711,19 @@ public class PapaFile extends PapaComponent{
 		b.write((short)numModels);
 		
 		b.write((short)numAnimations);*/
-		b.write((short)0);
-		b.write((short)0);
+		b.putShort((short)0);
+		b.putShort((short)0);
 		
-		b.write((short)0);
-		b.write((short)0);
-		b.write((short)0);
-		b.write((short)0);
+		b.putShort((short)0);
+		b.putShort((short)0);
+		b.putShort((short)0);
+		b.putShort((short)0);
 		
-		b.write((short)0);
-		b.write(0, 6);
+		b.putShort((short)0);
+		b.put(new byte[6]);
 	}
 	
-	private void buildComponent(ArrayList<? extends PapaComponent> comp, ByteWriter b) {
+	private void buildComponent(ArrayList<? extends PapaComponent> comp, ByteBuffer b) {
 		int currentSize = 0;
 		
 		for(PapaComponent p : comp) {
@@ -695,15 +732,15 @@ public class PapaFile extends PapaComponent{
 		}
 		
 		for(PapaComponent p : comp) {
-			p.applyOffset(currentSize + b.index());
+			p.applyOffset(currentSize + b.position());
 			currentSize+=ceilEight(p.bodySize());
 		}
 		
 		for(PapaComponent p : comp)
-			b.write(p.getHeaderBytes());
+			b.put(p.getHeaderBytes());
 		for(PapaComponent p : comp) {
-			b.write(p.getDataBytes());
-			b.seek(ceilEight(b.index()));
+			b.put(p.getDataBytes());
+			b.position(ceilEight(b.position()));
 		}
 	}
 	
@@ -816,40 +853,6 @@ public class PapaFile extends PapaComponent{
 		}
 		PA_ROOT_DIR_STRING = f.getAbsolutePath().replace('\\', '/');
 	}
-	
-	public static short changeEndian(short value)
-	{
-		int b1 = value 			& 0b1111_1111;
-		int b2 = (value >> 8) 	& 0b1111_1111;
-	  
-		return (short) (b1 << 8 | b2);
-	}
-	
-	  
-	public static int changeEndian(int value)
-	{
-		int b1 = value 			& 0b1111_1111;
-	  	int b2 = (value >>  8) 	& 0b1111_1111;
-	  	int b3 = (value >> 16) 	& 0b1111_1111;
-	  	int b4 = (value >> 24) 	& 0b1111_1111;
-	
-	  	return b1 << 24 | b2 << 16 | b3 << 8 | b4;
-	}
-	
-	  
-	public static long changeEndian(long value)
-	{
-		long b1 = value 		& 0b1111_1111;
-		long b2 = (value >>  8) & 0b1111_1111;
-	  	long b3 = (value >> 16) & 0b1111_1111;
-	  	long b4 = (value >> 24) & 0b1111_1111;
-	  	long b5 = (value >> 32) & 0b1111_1111;
-	  	long b6 = (value >> 40) & 0b1111_1111;
-	  	long b7 = (value >> 48) & 0b1111_1111;
-	  	long b8 = (value >> 56) & 0b1111_1111;
-	
-	  	return b1 << 56 | b2 << 48 | b3 << 40 | b4 << 32 | b5 << 24 | b6 << 16 | b7 <<  8 | b8;
-	}
 
 	@Override
 	protected void validate() {
@@ -894,5 +897,59 @@ public class PapaFile extends PapaComponent{
 		PapaFile p = new PapaFile();
 		p.setFileLocation(fileLocation);
 		return p;
+	}
+
+	//TODO: a dependency is defined as any instance which this PapaComponent uses in any way except for parents
+	// or: if you were to delete the dependency, you should likely also delete this PapaComponent unless you plan on replacing that dependency.
+	// Dependents and Dependencies should be symmetric
+	@Override
+	public PapaComponent[] getDependencies() {
+		return linkedFiles.values().toArray(new PapaFile[linkedFiles.size()]);
+	}
+
+	//TODO: a dependent is defined as any instance which uses this PapaComponent in any way.
+	@Override
+	public PapaComponent[] getDependents() {
+		ArrayList<PapaComponent> dependents = new ArrayList<PapaComponent>();
+		if(isLinkedFile()) {
+			dependents.add(getParent());
+			for(PapaComponent p : getParent().getAllDependentsFor(this))
+				dependents.add(p);
+		}
+		return dependents.toArray(new PapaComponent[dependents.size()]);
+	}
+
+	@Override
+	protected boolean isDependentOn(PapaComponent other) {
+		return linkedFiles.containsValue(other);
+	}
+	
+	public PapaComponent[] getAllDependentsFor(PapaComponent comp) {
+		ArrayList<PapaComponent> fileComponents = getAllComponents();
+		ArrayList<PapaComponent> dependents = new ArrayList<PapaComponent>();
+		for(PapaComponent p : fileComponents)
+			if(p.isDependentOn(comp))
+				dependents.add(p);
+		
+		if(isLinkedFile())
+			for(PapaComponent p : getParent().getAllDependentsFor(comp))
+				dependents.add(p);
+		
+		return dependents.toArray(new PapaComponent[dependents.size()]);
+	}
+	
+	public PapaComponent[] getOwnedComponents(PapaComponent[] comp) {
+		ArrayList<PapaComponent> components = new ArrayList<PapaComponent>();
+		for(PapaComponent p : comp)
+			if(p.getParent()==this)
+				components.add(p);
+		return components.toArray(new PapaComponent[components.size()]);
+	}
+
+	private ArrayList<PapaComponent> getAllComponents() {
+		ArrayList<PapaComponent> comp = new ArrayList<PapaComponent>();
+		for(ArrayList<? extends PapaComponent> list : components)
+			comp.addAll(list);
+		return comp;
 	}
 }

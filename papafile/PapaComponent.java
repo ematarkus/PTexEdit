@@ -19,9 +19,11 @@
  */
 package papafile;
 
+import java.nio.ByteBuffer;
+
 public abstract class PapaComponent {
 	
-	protected ByteWriter header = null, data = null; // it is vital that the size of data is the same size that getBody() returns.
+	protected ByteBuffer header = null, data = null; // it is vital that the size of data is the same size that getBody() returns.
 	
 	protected int ceilEight(int value) {
 		double val = value; // in the interest of matching PA, always make sure that this operation returns the next non equal multiple of eight
@@ -49,11 +51,11 @@ public abstract class PapaComponent {
 	protected abstract void applyOffset(int offset);
 	
 	protected byte[] getHeaderBytes() {
-		return header.getData();
+		return header.array();
 	}
 	
 	protected byte[] getDataBytes() {
-		return data.getData();
+		return data.array();
 	}
 	
 	public void overwrite(PapaComponent other) {
@@ -63,6 +65,8 @@ public abstract class PapaComponent {
 	}
 	
 	protected abstract void overwriteHelper(PapaComponent other);
+	
+	protected abstract boolean isDependentOn(PapaComponent other);
 	
 	public abstract void detach();
 	
@@ -78,6 +82,10 @@ public abstract class PapaComponent {
 	public abstract PapaComponent duplicate();
 	
 	public abstract PapaFile getParent();
+	
+	public abstract PapaComponent[] getDependencies();
+	
+	public abstract PapaComponent[] getDependents();
 	
 	public abstract void flush();
 	

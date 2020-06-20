@@ -19,6 +19,9 @@
  */
 package papafile;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 public class PapaString extends PapaComponent{
 
 	private String value;
@@ -48,21 +51,23 @@ public class PapaString extends PapaComponent{
 	@Override
 	protected void build() {
 		byte[] headerBytes = new byte[16];
-		header = new ByteWriter(headerBytes);
+		header = ByteBuffer.wrap(headerBytes);
+		header.order(ByteOrder.LITTLE_ENDIAN);
 		
 		byte[] dataBytes = new byte[bodySize()];
-		data = new ByteWriter(dataBytes);
+		data = ByteBuffer.wrap(dataBytes);
+		data.order(ByteOrder.LITTLE_ENDIAN);
 		
-		data.write(value);
+		data.put(value.getBytes());
 		
-		header.write(value.length());
-		header.write(padding);
+		header.putInt(value.length());
+		header.putInt(padding);
 		
 	}
 
 	@Override
 	protected void applyOffset(int offset) {
-		header.write((long)offset);
+		header.putLong((long)offset);
 	}
 
 	@Override
@@ -129,5 +134,22 @@ public class PapaString extends PapaComponent{
 		p.value = this.value;
 		p.padding = this.padding;
 		return p;
+	}
+
+	@Override
+	public PapaComponent[] getDependencies() {
+		return new PapaComponent[0];
+	}
+
+	@Override
+	public PapaComponent[] getDependents() {
+		if(getParent()==null)
+			return new PapaComponent[0];
+		return getParent().getAllDependentsFor(this);
+	}
+
+	@Override
+	protected boolean isDependentOn(PapaComponent other) {
+		return false;
 	}
 }
