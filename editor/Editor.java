@@ -57,14 +57,17 @@ public class Editor extends JFrame {
 	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
 	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
-	private static ImageIcon imgPapafile = loadIconFromResources("papafile.png");
-	private static ImageIcon imgPapafileImage = loadIconFromResources("papafileImage.png");
-	private static ImageIcon imgPapafileLinked = loadIconFromResources("papafileLinked.png");
-	private static ImageIcon imgPapafileLinkedImage = loadIconFromResources("papafileLinkedImage.png");
-	private static ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
-	private static ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
-	private static ImageIcon plusIcon = loadIconFromResources("plus.png");
-	private static ImageIcon minusIcon = loadIconFromResources("minus.png");
+	private static final BufferedImage icon = loadImageFromResources("icon.png");
+	private static final BufferedImage iconSmall = loadImageFromResources("iconSmall.png");
+	private static final ImageIcon imageIcon = new ImageIcon(icon);
+	private static final ImageIcon imgPapafile = loadIconFromResources("papafile.png");
+	private static final ImageIcon imgPapafileImage = loadIconFromResources("papafileImage.png");
+	private static final ImageIcon imgPapafileLinked = loadIconFromResources("papafileLinked.png");
+	private static final ImageIcon imgPapafileLinkedImage = loadIconFromResources("papafileLinkedImage.png");
+	private static final ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
+	private static final ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
+	private static final ImageIcon plusIcon = loadIconFromResources("plus.png");
+	private static final ImageIcon minusIcon = loadIconFromResources("minus.png");
 	private static final Properties prop = new Properties();
 	private static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
@@ -479,6 +482,8 @@ public class Editor extends JFrame {
 	public Editor() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
+		setIconImages(Arrays.asList(icon,iconSmall));
+		
 		contentPane = new JPanel();
 		setContentPane(contentPane);
 		SpringLayout contentPaneLayout = new SpringLayout();
@@ -678,6 +683,20 @@ public class Editor extends JFrame {
 			}
 		}
 		
+		private void clipboardChanged() {
+			try {
+				for(DataFlavor flavor : clipboard.getAvailableDataFlavors())
+					if(flavor.equals(DataFlavor.imageFlavor)) {
+						mEditPaste.setEnabled(true);
+						return;
+					}
+			} catch (IllegalStateException e) {
+				mEditPaste.setEnabled(true); // rely on future checks if we can't determine right now
+				return;
+			}
+			mEditPaste.setEnabled(false);
+		}
+		
 		public MenuBar() {
 			JMenu mFile = new JMenu("File");
 			mFile.setMnemonic('f');
@@ -797,10 +816,7 @@ public class Editor extends JFrame {
 			mEditCopy.setEnabled(false);
 			mEdit.add(mEditCopy);
 			mEditCopy.addActionListener((ActionEvent e)-> {
-				PapaTexture tex = activeTexture;
-				if(tex.isLinked() && tex.linkValid())
-					tex = tex.getLinkedTexture();
-				transferToClipboard(tex.getImage());
+				transferToClipboard(imagePanel.getFullImage());
 			});
 			
 			mEditPaste = new JMenuItem("Paste");
@@ -815,6 +831,14 @@ public class Editor extends JFrame {
 				}
 				readImage(i);
 			});
+			
+			clipboard.addFlavorListener(new FlavorListener() {
+				@Override
+				public void flavorsChanged(FlavorEvent e) {
+					clipboardChanged();
+				}
+			});
+			clipboardChanged();
 			
 			JMenu mView = new JMenu("View");
 			mView.setMnemonic('v');
@@ -992,14 +1016,14 @@ public class Editor extends JFrame {
 			mHelp.add(mHelpAbout);
 			mHelpAbout.addActionListener((ActionEvent e) -> {
 				JOptionPane.showMessageDialog(APPLICATION_WINDOW, "PTexEdit version: " + VERSION_STRING + "\n"
-						+ "Date: "+BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE);
+						+ "Date: "+BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE,imageIcon);
 			});
 			mHelpAbout.setMnemonic('a');
 		}
 		private Image getImageFromClipboard() {
 			try {
 				return (Image)clipboard.getData(DataFlavor.imageFlavor);
-			} catch (UnsupportedFlavorException e) {
+			} catch (UnsupportedFlavorException | IllegalStateException e) {
 				return null;
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -1010,7 +1034,11 @@ public class Editor extends JFrame {
 		// https://coderanch.com/t/333565/java/BufferedImage-System-Clipboard
 		private void transferToClipboard(BufferedImage image) {
 			TransferableImage t = new TransferableImage(image);
-			clipboard.setContents(t, clipboardImage);
+			try {
+				clipboard.setContents(t, clipboardImage);
+			} catch (IllegalStateException e) {
+				showError("Failed to copy image to clipboad. Clipboard is unavailable.", "Copy error", new Object[] {"Ok"}, "Ok");
+			}
 		}
 		
 		private class TransferableImage implements Transferable {
@@ -2498,11 +2526,11 @@ public class Editor extends JFrame {
 		private void updateMouseLocation(int mouseX, int mouseY) {
 			if(mouseX >= getTotalDrawWidth() || mouseX<0 || mouseY>=getTotalDrawHeight() || mouseY<0)
 				mouseInBounds=false;
-			else
+			else {
 				mouseInBounds=true;
-			
-			this.mouseX = (int) (mouseX / scale + valueToPixels(horizontal));
-			this.mouseY = (int) (mouseY / scale + valueToPixels(vertical));
+				this.mouseX = (int) (mouseX / scale + valueToPixels(horizontal)) % width;
+				this.mouseY = (int) (mouseY / scale + valueToPixels(vertical)) % height;
+			}
 			ribbonPanel.updateMouseLocation();
 		}
 		
@@ -2642,7 +2670,7 @@ public class Editor extends JFrame {
 			return (int) (pixels * scale);
 		}
 		
-		private BufferedImage getImage() {
+		private BufferedImage getImageFromTexture() {
 			if(luminance)
 				return image.asLuminance(index);
 			
@@ -2662,11 +2690,45 @@ public class Editor extends JFrame {
 			}
 		}
 		
+		public BufferedImage getImage() {
+			BufferedImage draw = getImageFromTexture();
+			if (ignoreAlpha && image.supportsAlpha()) {
+				if(ignoreAlphaChacheInvalid()) {
+					 // copy the data into a new BufferedImage with no alpha.
+					BufferedImage tmp = removeAlpha(draw);
+					
+					ignoreAlphaCache = tmp;
+					
+					ignoreAlphaIndexCache = index;
+					ignoreAlphaModeCache = mode;
+					ignoreAlphaLuminanceCache = luminance;
+				}
+				draw = ignoreAlphaCache;
+			}
+			return draw;
+		}
+		
+		public BufferedImage getFullImage() {
+			BufferedImage draw = getImage();
+			if(tile) {
+				int w = draw.getWidth();
+				int h = draw.getHeight();
+				BufferedImage out = new BufferedImage(w * 2, h * 2, draw.getType());
+				Graphics2D g2d = (Graphics2D) out.getGraphics();
+				g2d.drawImage(draw, 0, 0, null);
+				g2d.drawImage(draw, w, 0, null);
+				g2d.drawImage(draw, 0, h, null);
+				g2d.drawImage(draw, w, h, null);
+				draw = out;
+			}
+			return draw;
+		}
+		
 		private boolean ignoreAlphaChacheInvalid() {
 			return ignoreAlphaCache==null || ignoreAlphaIndexCache!=index || ignoreAlphaModeCache!=mode || ignoreAlphaLuminanceCache!=luminance;
 		}
 		
-		public BufferedImage removeAlpha(BufferedImage input) {
+		private BufferedImage removeAlpha(BufferedImage input) {
 			BufferedImage tmp = new BufferedImage(input.getWidth(),input.getHeight(),BufferedImage.TYPE_INT_RGB);
 			int[] data = new int[input.getWidth()*input.getHeight()];
 			input.getRGB(0, 0, input.getWidth(), input.getHeight(), data, 0, input.getWidth());
@@ -2688,20 +2750,6 @@ public class Editor extends JFrame {
 			
 			if(! ignoreAlpha && image.supportsAlpha())
 				drawCheckerboardGrid(g2d);
-			else if (ignoreAlpha) {
-				
-				if(ignoreAlphaChacheInvalid()) {
-					 // copy the data into a new BufferedImage with no alpha.
-					BufferedImage tmp = removeAlpha(draw);
-					
-					ignoreAlphaCache = tmp;
-					
-					ignoreAlphaIndexCache = index;
-					ignoreAlphaModeCache = mode;
-					ignoreAlphaLuminanceCache = luminance;
-				}
-				draw = ignoreAlphaCache;
-			}
 			
 			AffineTransform newTransform = g2d.getTransform();
 			newTransform.scale(scale, scale);

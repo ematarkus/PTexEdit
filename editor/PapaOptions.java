@@ -126,6 +126,8 @@ public class PapaOptions extends JDialog  {
 	public PapaOptions(JFrame owner, ImmutableTextureSettings currentValues) {
 		super(owner);
 		
+		setIconImages(owner.getIconImages());
+		
 		ImmutableTextureSettings t = currentValues;
 		if(t==null)
 			t = TextureSettings.defaultSettings().immutable();

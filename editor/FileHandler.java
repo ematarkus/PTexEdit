@@ -24,7 +24,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.*;
 //import java.util.zip.*;
 
 import javax.imageio.ImageIO;
@@ -40,14 +40,16 @@ public class FileHandler {
 	private static LinkedBlockingQueue<Runnable> queue;
 	private static ThreadPoolExecutor executor;
 	private static Object lock = new Object();
-	private static Vector<Future<Void>> tasks;
+	private static Vector<Future<?>> tasks;
 	private static FileNameExtensionFilter[] imageFilters;
 	private static FileNameExtensionFilter papaFilter = new FileNameExtensionFilter("Planetary Annihilation File (*.papa)", "papa");
+	private static Vector<RunnableHandle> submittedTasks;
 	
 	private static void initializeThreadPool() {
 		 queue = new LinkedBlockingQueue<Runnable>();
 		 executor = new ThreadPoolExecutor(4, 4, 500, TimeUnit.MILLISECONDS, queue);
-		 tasks = new Vector<Future<Void>>();
+		 tasks = new Vector<Future<?>>();
+		 submittedTasks = new Vector<RunnableHandle>();
 	}
 	
 	static {
@@ -117,7 +119,9 @@ public class FileHandler {
 		
 		toParse.stream().forEach((StreamableData sd) -> {
 			try {
-				tasks.add(executor.submit(importInterface.getCallable(sd.getStream(), sd.getFile(), info)));
+				RunnableHandle r = importInterface.getRunnable(sd.getHandle(), sd.getStream(), sd.getFile(), info);
+				tasks.add(executor.submit(r));
+				submittedTasks.add(r);
 			} catch (IOException e1) {
 				throw new IllegalArgumentException(e1);
 			}
@@ -125,7 +129,7 @@ public class FileHandler {
 		
 		if(wait || info.isDirectoryMode()) {
 			try {
-				for(Future<Void> result : tasks)
+				for(Future<?> result : tasks)
 					result.get();
 			} catch (InterruptedException e) {
 				throw e;
@@ -196,15 +200,18 @@ public class FileHandler {
 	}
 	
 	public static void cancelActiveTask() {
-		queue.clear();
 		executor.shutdownNow();
 		try {
-			executor.awaitTermination(60, TimeUnit.SECONDS);
+			executor.awaitTermination(60, TimeUnit.MINUTES);
 		} catch (InterruptedException e) {}
 		
 		synchronized(tasks) {
-			for(Future<Void> f : tasks)
+			for(Future<?> f : tasks)
 				f.cancel(false);
+		}
+		synchronized(submittedTasks) {
+			for(RunnableHandle r : submittedTasks)
+				r.countDown();
 		}
 		
 		initializeThreadPool();
@@ -240,10 +247,10 @@ public class FileHandler {
 		}
 
 		@Override
-		public Callable<Void> getCallable(InputStream stream, File file, ImportInfo info) {
-			return new Callable<Void>() {
+		public RunnableHandle getRunnable(Handle handle, InputStream stream, File file, ImportInfo info) {
+			return new RunnableHandle(handle) {
 				@Override
-				public Void call() throws Exception{
+				public void run() {
 					info.onStartProcessFile(file, Thread.currentThread().getName());
 					String path = file.getPath();
 					PapaFile papaFile;
@@ -251,18 +258,18 @@ public class FileHandler {
 						papaFile = new PapaFile(stream, path);
 					} catch (IOException e) {
 						rejectFile(file, info, e.getMessage());
-						return null;
+						return;
 					} finally {
-						stream.close();
+						PAPA_INTERFACE.closeStream(stream);
+						countDown();
 					}
 					
 					if(papaFile.getNumTextures()==0) {
 						rejectFile(file, info, "Papa file contains no images");
-						return null;
+						return;
 					}
 					
 					info.accept(file, papaFile);
-					return null;
 				}
 				
 			};
@@ -288,10 +295,10 @@ public class FileHandler {
 		}
 
 		@Override
-		public Callable<Void> getCallable(InputStream stream, File file, ImportInfo info) {
-			return new Callable<Void>() {
+		public RunnableHandle getRunnable(Handle handle, InputStream stream, File file, ImportInfo info) {
+			return new RunnableHandle(handle) {
 				@Override
-				public Void call() throws Exception {
+				public void run() {
 					info.onStartProcessFile(file, Thread.currentThread().getName());
 					BufferedImage b;
 					PapaFile p;
@@ -318,13 +325,13 @@ public class FileHandler {
 					} catch (IOException | NullPointerException e) { // NPE is quick solution for unload while converting
 						e.printStackTrace();
 						rejectFile(file, info, e.getClass().getName()+": "+e.getMessage());
-						return null;
+						return;
 					} finally {
-						stream.close();
+						IMAGE_INTERFACE.closeStream(stream);
+						countDown();
 					}
 					
 					info.accept(file, p);
-					return null;
 				}
 				
 			};
@@ -338,16 +345,39 @@ public class FileHandler {
 	
 	public static abstract class ImportInterface {
 		public abstract boolean filter(File file);
-		public abstract Callable<Void> getCallable(InputStream stream, File input, ImportInfo info);
+		public abstract RunnableHandle getRunnable(Handle handle, InputStream stream, File input, ImportInfo info);
 		public abstract String getType();
 		public final void rejectFile(File file, ImportInfo info, String reason) {
 			info.reject(file, reason);
-			if(!info.isDirectoryMode()) {
+			if( ! info.isDirectoryMode() && ! info.isInternalMode()) {
 				synchronized(lock) {
 					Editor.showError(reason, "Error: " + file.getName(), new Object[] {"Ok"}, "Ok");
 				}
 			}
 		}
+		private final void closeStream(InputStream s) {
+			try {
+				s.close();
+			} catch (IOException e) {
+				System.err.println("Memory leak: Failed to close stream "+s);
+			}
+		}
+	}
+	
+	private static abstract class RunnableHandle implements Runnable {
+		private final Handle handle;
+		private AtomicBoolean counted = new AtomicBoolean();
+		public RunnableHandle(Handle handle) {
+			this.handle=handle;
+			if(handle==null)
+				counted.set(true);
+		}
+		
+		public synchronized void countDown() {
+			if(counted.compareAndSet(false, true))
+				handle.countDown();
+		}
+		
 	}
 	
 	public static class ImportInfo {
@@ -455,6 +485,7 @@ public class FileHandler {
 	
 	private static abstract class StreamableData {
 		public abstract File getFile();
+		public abstract Handle getHandle();
 		public abstract InputStream getStream() throws IOException;
 	}
 	
@@ -475,6 +506,11 @@ public class FileHandler {
 			return input;
 		}
 		
+		@Override
+		public Handle getHandle() {
+			return null;
+		}
+		
 	}
 	
 	/*private static class StreamableZipEntry extends StreamableData { //TODO: this currently causes a memory leak as nothing ever closes the zipFile
@@ -482,11 +518,13 @@ public class FileHandler {
 		private final File input;
 		private final ZipFile zipFile;
 		private final ZipEntry entry;
+		private final Handle zipHandle;
 		
-		public StreamableZipFile(File path, ZipFile file, ZipEntry entry) {
+		public StreamableZipFile(File path, ZipFile file, ZipEntry entry, Handle zipHandle) {
 			this.input = path;
 			this.zipFile = file;
 			this.entry = entry;
+			this.zipHandle = zipHandle;
 		}
 
 		@Override
@@ -497,6 +535,11 @@ public class FileHandler {
 		@Override
 		public InputStream getStream() throws IOException {
 			return zipFile.getInputStream(entry);
+		}
+		
+		@Override
+		public Handle getHandle() {
+			return zipHandle;
 		}
 	}
 	
@@ -509,6 +552,42 @@ public class FileHandler {
 	PTexEdit/PTexEdit.jar
 	
 	*/
+	
+	private static class Handle {
+		private Closeable handle;
+		private AtomicBoolean isStarted = new AtomicBoolean();
+		private AtomicInteger count = new AtomicInteger();
+			
+		public Handle(Closeable c) {
+			this.handle=c;
+		}
+		
+		public synchronized void start() {
+			this.isStarted.set(true);
+		}
+		
+		public synchronized void countUp() {
+			if(isStarted.get())
+				throw new IllegalStateException("Cannot add elements to this handle after it is started");
+			count.incrementAndGet();
+		}
+		
+		public synchronized void countDown() {
+			if( ! isStarted.get())
+				throw new IllegalStateException("Cannot remove elements from this handle before it is started");
+			if(count.decrementAndGet() == 0) {
+				closeStream();
+			}
+		}
+		
+		private void closeStream() {
+			try {
+				handle.close();
+			} catch (IOException e) {
+				System.err.println("Failed to close handle: "+handle);
+			}
+		}
+	}
 	
 	public static boolean checkIsInPA(File f) {
 		try {

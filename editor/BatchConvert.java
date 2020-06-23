@@ -63,6 +63,8 @@ public class BatchConvert extends JDialog  {
 	public BatchConvert(JFrame owner, PapaOptions o) {
 		super(owner);
 		
+		setIconImages(owner.getIconImages());
+		
 		papaOptions = o;
 		addWindowListener(wl);
 		setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
