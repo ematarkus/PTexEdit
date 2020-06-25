@@ -53,8 +53,8 @@ public class Editor extends JFrame {
 
 	private static final long serialVersionUID = 894467903207605180L;
 	private static final String APPLICATION_NAME = "PTexEdit";
-	private static final String VERSION_STRING = "0.2.2";
-	private static final String BUILD_DATE = "June 22, 2020";
+	private static final String VERSION_STRING = "0.2.3";
+	private static final String BUILD_DATE = "June 24, 2020";
 	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
 	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
