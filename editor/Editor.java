@@ -22,6 +22,7 @@ package editor;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.plaf.FontUIResource;
 import javax.swing.tree.*;
 import javax.swing.border.Border;
 import javax.swing.event.*;
@@ -94,6 +95,7 @@ public class Editor extends JFrame {
 	private BatchConvert batchConvert;
 	
 	public static void main(String[] args) {
+		applyPlatformChanges();
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				APPLICATION_WINDOW = new Editor();
@@ -141,7 +143,6 @@ public class Editor extends JFrame {
 			prop.load(fis);
 		} catch (IOException e) {
 			System.err.println("Could not load settings file.");
-			return;
 		} finally {
 			try {
 				fis.close();
@@ -191,8 +192,28 @@ public class Editor extends JFrame {
 	private static void addShutdownHooks() {
 		Runtime.getRuntime().addShutdownHook(onExit);
 	}
+	
 	private static void addUncaughtExceptionHandler() {
 		Thread.setDefaultUncaughtExceptionHandler(onThreadException);
+	}
+	
+	private static void applyPlatformChanges() {
+		float size = 12f;
+		String name = System.getProperty("os.name").toLowerCase(Locale.ENGLISH);
+		if(name.contains("linux") || name.contains("unix"))
+			size = 10f;
+		else if(name.contains("mac"))
+			size = 11f;
+		try {
+			UIManager.put("Label.font", UIManager.getFont("Label.font").deriveFont(size));
+			UIManager.put("CheckBox.font", UIManager.getFont("CheckBox.font").deriveFont(size));
+			UIManager.put("ComboBox.font", UIManager.getFont("ComboBox.font").deriveFont(size));
+			UIManager.put("Button.font", UIManager.getFont("Button.font").deriveFont(size));
+			UIManager.put("RadioButton.font", UIManager.getFont("RadioButton.font").deriveFont(size));
+		} catch (NullPointerException e) {
+			System.err.println("Failed to set font");
+		}
+		
 	}
 	
 	private static final UncaughtExceptionHandler onThreadException = new UncaughtExceptionHandler() {
@@ -426,11 +447,8 @@ public class Editor extends JFrame {
 		else
 			setCursor(Cursor.getDefaultCursor());
 		
+		menu.setReadingFiles(b);
 		boolean enable = !b;
-		menu.mFileImport.setEnabled(enable);
-		menu.mFileOpen.setEnabled(enable);
-		menu.mToolsConvertFolder.setEnabled(enable);
-		menu.mEditPaste.setEnabled(enable);
 		imagePanel.dragDropEnabled = enable;
 	}
 
@@ -456,10 +474,10 @@ public class Editor extends JFrame {
 		configSection2.applySettings(activeFile, index, activeTexture ,changed);
 	}
 	
-	private void refreshActiveFile() {
+	/*private void refreshActiveFile() {
 		setActiveFile(activeFile);
 		configSelector.selectedNodeChanged();
-	}
+	}*/
 	
 	private void setActiveTexture(PapaTexture p) {
 		activeTexture = p;
@@ -604,6 +622,7 @@ public class Editor extends JFrame {
 		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mOptionsShowRoot;
 		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
 		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mEditCopy, mEditPaste;
+		private boolean clipboardHasImage, readingFiles;
 		
 		public int getSelectedRadioButton() { // I hate ButtonGroup.
 			Enumeration<AbstractButton> i = mViewChannelItems.getElements();
@@ -616,6 +635,15 @@ public class Editor extends JFrame {
 			return 0;
 		}
 		
+		public void setReadingFiles(boolean b) {
+			boolean enable = !b;
+			readingFiles = b;
+			mFileImport.setEnabled(enable);
+			mFileOpen.setEnabled(enable);
+			mToolsConvertFolder.setEnabled(enable);
+			mEditPaste.setEnabled(enable && clipboardHasImage);
+		}
+
 		public void unload() {
 			mFileSave.setEnabled(false);
 			mFileSaveAs.setEnabled(false);
@@ -625,7 +653,7 @@ public class Editor extends JFrame {
 		}
 
 		public void applySettings(PapaFile activeFile, int index, PapaTexture tex, boolean same) {
-			if(activeFile.getNumTextures() == 0 || tex == null || (tex.isLinked() && ! tex.linkValid())) {
+			if(activeFile.getNumTextures() == 0 || tex == null) {
 				unload();
 				return;
 			}
@@ -687,14 +715,14 @@ public class Editor extends JFrame {
 			try {
 				for(DataFlavor flavor : clipboard.getAvailableDataFlavors())
 					if(flavor.equals(DataFlavor.imageFlavor)) {
-						mEditPaste.setEnabled(true);
+						clipboardHasImage = true;
 						return;
 					}
 			} catch (IllegalStateException e) {
-				mEditPaste.setEnabled(true); // rely on future checks if we can't determine right now
+				clipboardHasImage = true; // rely on future checks if we can't determine right now
 				return;
 			}
-			mEditPaste.setEnabled(false);
+			clipboardHasImage = false;
 		}
 		
 		public MenuBar() {
@@ -836,9 +864,11 @@ public class Editor extends JFrame {
 				@Override
 				public void flavorsChanged(FlavorEvent e) {
 					clipboardChanged();
+					mEditPaste.setEnabled(clipboardHasImage && ! readingFiles);
 				}
 			});
 			clipboardChanged();
+			mEditPaste.setEnabled(clipboardHasImage);
 			
 			JMenu mView = new JMenu("View");
 			mView.setMnemonic('v');
@@ -1395,6 +1425,23 @@ public class Editor extends JFrame {
 			
 		}
 		
+		private void refreshActiveTextureLinks() {
+			if(activeTexture.isLinked() && ! activeTexture.linkValid()) {
+				imageName.setBorder(BorderFactory.createLineBorder(Color.red));
+			} else {
+				imageName.setBorder(defaultButtonBorder);
+			}
+			configSelector.selectedNodeChanged();
+		}
+		
+		private void refreshActiveFileLinks() {
+			if(activeFile.isLinkedFile() && ! activeFile.getParent().isLinkedFileReferenced(activeFile))
+				filePath.setBorder(BorderFactory.createLineBorder(Color.red));
+			else 
+				filePath.setBorder(defaultButtonBorder);
+			configSelector.selectedNodeChanged();
+		}
+		
 		public void unload() {
 			spinnerImage.setEnabled(false);
 			spinnerImage.setValue(0);
@@ -1471,9 +1518,32 @@ public class Editor extends JFrame {
 			imageName.setEnabled(false);
 			add(imageName);
 			
-			imageName.addActionListener((ActionEvent e) -> {
-				activeTexture.setName(imageName.getText());
-				refreshActiveFile();
+			imageName.getDocument().addDocumentListener(new DocumentListener() {
+				
+				@Override
+				public void removeUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void insertUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void changedUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				private void update() {
+					if(activeTexture==null)
+						return;
+					String name = imageName.getText();
+					if(name.equals(""))
+						name = "<no name>";
+					activeTexture.setName(name);
+					refreshActiveTextureLinks();
+				}
 			});
 			
 			defaultButtonBorder = imageName.getBorder();
@@ -1487,9 +1557,32 @@ public class Editor extends JFrame {
 			filePath.setEnabled(false);
 			add(filePath);
 			
-			filePath.addActionListener((ActionEvent e) -> {
-				activeFile.setLocationRelative(filePath.getText());
-				refreshActiveFile();
+			filePath.getDocument().addDocumentListener(new DocumentListener() {
+				
+				@Override
+				public void removeUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void insertUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void changedUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				private void update() {
+					if(activeFile==null || ! filePath.isEnabled())
+						return;
+					String path = filePath.getText();
+					if(path.equals(""))
+						path = "<no name>";
+					activeFile.setLocationRelative(path);
+					refreshActiveFileLinks();
+				}
 			});
 			
 			srgb = new JCheckBox("SRGB");
@@ -1859,10 +1952,12 @@ public class Editor extends JFrame {
 		
 		private DefaultTreeCellRenderer papaTreeRenderer = new DefaultTreeCellRenderer() {
 			private static final long serialVersionUID = -3988740979113661683L;
-
+			private final Font font = this.getFont().deriveFont(Font.PLAIN);
+			
 			@Override
 			public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
 				super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+				this.setFont(font);
 				DefaultMutableTreeNode node = (DefaultMutableTreeNode) value;
 				Object o = node.getUserObject();
 				if(o instanceof PapaFile) {
@@ -2263,6 +2358,10 @@ public class Editor extends JFrame {
 	            	return toReload;
 	            
 	            boolean link = mode == 0;
+	            if(link && PapaFile.getPlanetaryAnnihilationDirectory()==null) {
+	            	showError("Link is not available until the media directory is set.", "Cannot link", new Object[] {"Ok"}, "Ok");
+	            	return toReload;
+	            }
 	            toReload.add(target);
 	            for(DefaultMutableTreeNode node : nodes) {
 	            	DefaultMutableTreeNode refreshNode = getLowestUnlikedNode(node);

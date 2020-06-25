@@ -315,6 +315,9 @@ public class FileHandler {
 					}
 					
 					try {
+						if(link && PapaFile.getPlanetaryAnnihilationDirectory()==null)
+							throw new IOException("Link is not available until the media directory is set.");
+						
 						b = ImageIO.read(stream);
 						PapaTexture t = new PapaTexture(b, info.getTextureSettings(), null, file.getName());
 						if(link)
