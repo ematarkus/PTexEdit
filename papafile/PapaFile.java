@@ -188,7 +188,7 @@ public class PapaFile extends PapaComponent{
 		fileName = loc != -1 ? path.substring(loc + 1) : path;
 		filePath = loc != -1 ? path.substring(0,loc) : path;
 		loc = fileName.lastIndexOf(".");
-		isPapa = fileName.substring(loc).equals(".papa");
+		isPapa = loc != -1 && fileName.substring(loc).equals(".papa");
 		if(PA_ROOT_DIR != null && path.startsWith(PA_ROOT_DIR_STRING))
 			relativePath = path.substring(PA_ROOT_DIR_STRING.length());
 		else
@@ -763,6 +763,8 @@ public class PapaFile extends PapaComponent{
 	
 	@Override
 	public void flush() {
+		if(linkedFiles==null)
+			return;
 		PapaFile[] entries = linkedFiles.values().toArray(new PapaFile[linkedFiles.size()]); // error if you directly access values() due to child files modifying the parent files
 		for(PapaFile p : entries)
 			p.flush();
