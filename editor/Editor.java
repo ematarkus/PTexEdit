@@ -2232,11 +2232,11 @@ public class Editor extends JFrame {
 					iconList.add(imgPapaFileUnsaved);
 				
 				iconList.add(imgPapafileImage);
-				if(t.isLinked())
-					if(t.linkValid())
-						iconList.add(imgPapafileLinked);
-					else
+				if(t.isLinked()) {
+					iconList.add(imgPapafileLinked);
+					if(!t.linkValid())
 						iconList.add(imgPapafileError);
+				}
 				if(p.isLinkedFile() && !p.getParent().isLinkedFileReferenced(p))
 					iconList.add(imgPapafileNoLinks);
 				return createImageIcon((ImageIcon[]) iconList.toArray(new ImageIcon[iconList.size()]));
@@ -2665,7 +2665,7 @@ public class Editor extends JFrame {
 	            
 	            boolean link = mode == 0;
 	            if(link && PapaFile.getPlanetaryAnnihilationDirectory()==null) {
-	            	if(showError("Link is not available until the media directory is set.", "Cannot link", new Object[] {"Ok","Set Directory"}, "Ok") == 1)
+	            	if(showError("Link is unavailable until the media directory is set.", "Cannot link", new Object[] {"Ok","Set Media Directory"}, "Ok") == 1)
 	            		menu.changeMediaDirectory();
 	            	if(PapaFile.getPlanetaryAnnihilationDirectory()==null)
 	            		return toReload;
