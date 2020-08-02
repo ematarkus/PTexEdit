@@ -2,13 +2,13 @@
 PTexEdit is a graphical Java application allowing for read and write operations on papa files.
 
 ### Launching
-PTexEdit requires Java to be installed installed to run. If you do not have java, you can download it here: https://java.com/en/download/
+PTexEdit requires Java to be installed installed to run. If you do not have Java, you can download it here: https://java.com/en/download/
 
 If you have Java installed simply double click PTexEdit.jar it to run it like any other program. If you have .jar associated with another program (such as WinRar) right click PTexEdit.jar and select "open with" then select "Java (TM) Platform SE Binary" or similar. Alternatively, you can create a windows batch file file in the same directory with the following command:
 ``java -jar PTexEdit.jar``
 
 ### Usage
-Use the File menu to read and write papa and image files. The View menu will alter the way that program displays images on the right panel. Once an image is loaded, you can zoom and scroll around it, clicking on the image will save the colour under the mouse on the bottom left. For large conversion jobs, there is a batch converter located under Tools.
+Use the File menu to read and write papa and image files. The View menu will alter the way that program displays images on the right panel. Once an image is loaded, you can zoom and scroll around it, clicking on the image will save the colour under the mouse on the bottom right. For large conversion jobs, there is a batch converter located under Tools.
 
 PTexEdit supports drag and drop operations for loading files and folders. If the program can be certain of what operation you want to do it will automatically start processing the input, otherwise it will prompt on whether to open in papa or image mode. "Open" and "Save" are used to read and write papa files, "Import" and "Export" are used to read and write image files. Only drag and drop properly supports folder reading.
 
