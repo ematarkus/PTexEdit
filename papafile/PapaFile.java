@@ -31,6 +31,7 @@ import javax.imageio.ImageIO;
 
 import com.github.memo33.jsquish.Squish.CompressionMethod;
 
+import papafile.PapaModel.PapaMeshBinding;
 import papafile.PapaTexture.ImmutableTextureSettings;
 import papafile.PapaTexture.TextureSettings;
 
@@ -40,13 +41,13 @@ public class PapaFile extends PapaComponent{
 
 	private ArrayList<PapaString> strings = new ArrayList<PapaString>();
 	private ArrayList<PapaTexture> textures = new ArrayList<PapaTexture>();
-	//private ArrayList<PapaVBuffer> vBuffers = new ArrayList<PapaVBuffer>();
-	//private ArrayList<PapaIBuffer> iBuffers = new ArrayList<PapaIBuffer>();
-	//private ArrayList<PapaMaterial> materials = new ArrayList<PapaMaterial>();
-	//private ArrayList<PapaMesh> meshes = new ArrayList<PapaMesh>();
-	//private ArrayList<PapaSkeleton> skeletons = new ArrayList<PapaSkeleton>();
-	//private ArrayList<PapaModel> models = new ArrayList<PapaModel>();
-	//private ArrayList<PapaAnimation> animations = new ArrayList<PapaAnimation>();
+	private ArrayList<PapaVertexBuffer> vBuffers = new ArrayList<PapaVertexBuffer>();
+	private ArrayList<PapaIndexBuffer> iBuffers = new ArrayList<PapaIndexBuffer>();
+	private ArrayList<PapaMaterial> materials = new ArrayList<PapaMaterial>();
+	private ArrayList<PapaMesh> meshes = new ArrayList<PapaMesh>();
+	private ArrayList<PapaSkeleton> skeletons = new ArrayList<PapaSkeleton>();
+	private ArrayList<PapaModel> models = new ArrayList<PapaModel>();
+	private ArrayList<PapaAnimation> animations = new ArrayList<PapaAnimation>();
 	
 	private HashMap<String, PapaFile> linkedFiles = new HashMap<String, PapaFile>();
 	
@@ -55,18 +56,21 @@ public class PapaFile extends PapaComponent{
 	private static final boolean ERROR_IF_NOT_FOUND = false;
 	
 	@SuppressWarnings("unchecked")
-	private ArrayList<? extends PapaComponent>[] components = (ArrayList<? extends PapaComponent>[]) new ArrayList<?>[] {strings,textures};
+	private ArrayList<? extends PapaComponent>[] components = (ArrayList<? extends PapaComponent>[]) new ArrayList<?>[] {strings,textures,vBuffers,iBuffers, materials, 
+																														meshes,skeletons, models, animations};
+	private static final String[] COMPONENT_NAMES = new String[] {"Strings","Textures","Vertex Buffers","Index Buffers","Materials","Meshes", "Skeletons", "Models", "Animations"};
+	private static final int[] buildOrder = new int[] {7,5,4,1,2,3,6,8,0};
 	
 	public static final int NONE =		0b000000000;
-	public static final int TEXTURE = 	0b000000001;
-	public static final int VBUF = 		0b000000010;
-	public static final int IBUF = 		0b000000100;
-	public static final int MATERIAL = 	0b000001000;
-	public static final int MESH = 		0b000010000;
-	public static final int SKELETON = 	0b000100000;
-	public static final int MODEL = 	0b001000000;
-	public static final int ANIMATION = 0b010000000;
-	public static final int STIRNG = 	0b100000000;
+	public static final int STRING = 	0b000000001;
+	public static final int TEXTURE = 	0b000000010;
+	public static final int VBUF = 		0b000000100;
+	public static final int IBUF = 		0b000001000;
+	public static final int MATERIAL = 	0b000010000;
+	public static final int MESH = 		0b000100000;
+	public static final int SKELETON = 	0b001000000;
+	public static final int MODEL = 	0b010000000;
+	public static final int ANIMATION = 0b100000000;
 	public static final int ALL = 		0b111111111;
 	private static final int HEADER_SIZE = 0x68;
 	
@@ -107,6 +111,11 @@ public class PapaFile extends PapaComponent{
 	private String	relativePath = "Unknown";
 	
 	private boolean isPapa;
+	private boolean buildSuccessful = false;
+	
+	private int maxErrorLevel = 0;
+	
+	private BuildNotification[] buildNotifications = new BuildNotification[0];
 	
 	private boolean isLinked = false;
 	private PapaFile parentFile = null;
@@ -198,15 +207,15 @@ public class PapaFile extends PapaComponent{
 	}
 	
 	public void setLocationRelative(String newName) {
-		setFileLocation(new File(PA_ROOT_DIR + newName));
-	}
-	
-	public boolean containsNonImageData() { //TODO temporary workaround for bigger problem
-		return  numVBuffers!=0 || numIBuffers!=0 || numMaterials!=0 || numMeshes!=0 || numSkeletons!=0 || numModels!=0;
+		setFileLocation(new File((PA_ROOT_DIR==null ? "" : PA_ROOT_DIR) + newName));
 	}
 	
 	public String getFileName() {
 		return fileName;
+	}
+	
+	public boolean relativeFileNameAvailable() {
+		return PA_ROOT_DIR !=null && !relativePath.equals("Unknown");
 	}
 	
 	public String getRelativeFileName() {
@@ -245,8 +254,48 @@ public class PapaFile extends PapaComponent{
 		return numTextures;
 	}
 	
+	public int getNumVBuffers() {
+		return numVBuffers;
+	}
+	
+	public int getNumIBuffers() {
+		return numIBuffers;
+	}
+	
+	public int getNumMaterials() {
+		return numMaterials;
+	}
+	
+	public int getNumMeshes() {
+		return numMeshes;
+	}
+	
+	public int getNumSkeletons() {
+		return numSkeletons;
+	}
+	
+	public int getNumModels() {
+		return numModels;
+	}
+	
+	public int getNumAnimations() {
+		return numAnimations;
+	}
+	
 	public boolean isPapaFile() {
 		return isPapa;
+	}
+	
+	public boolean buildSuccessful() {
+		return this.buildSuccessful;
+	}
+	
+	public boolean testBuildErrorLevel(int maxErrorLevel) {
+		return this.maxErrorLevel >= maxErrorLevel;
+	}
+	
+	public BuildNotification[] getBuildNotifications() {
+		return this.buildNotifications;
 	}
 	
 	public void generateLinkedTexture(PapaTexture t) {
@@ -304,15 +353,11 @@ public class PapaFile extends PapaComponent{
 		recalculateFileSize();
 	}
 	
-	public PapaTexture getTexture(int index) {
-		return textures.get(index);
-	}
-	
 	public PapaTexture getTexture(String name) {
 		for(int i = 0; i< textures.size();i++)
 			if(textures.get(i).getName().equals(name))
 				return textures.get(i);
-		throw new NoSuchElementException("Texture \""+name+"\" not found.");
+		throw new IllegalArgumentException("Texture \""+name+"\" not found.");
 	}
 	
 	public void addTexture(BufferedImage b, ImmutableTextureSettings t) throws IOException{
@@ -335,7 +380,7 @@ public class PapaFile extends PapaComponent{
 			detach();
 		}
 		
-		int index = textures.indexOf(tex);
+		int index = indexOfReference(textures, tex);
 		if(index==-1)
 			throw new IllegalArgumentException("Cannot remove texture which does not belong to this papaFile");
 		textures.remove(index);
@@ -346,10 +391,187 @@ public class PapaFile extends PapaComponent{
 		recalculateFileSize();
 	}
 	
+	private int indexOfReference(ArrayList<? extends PapaComponent> list, PapaComponent comp) {
+		for(int i =0;i<list.size();i++)
+			if(list.get(i)==comp)
+				return i;
+		return -1;
+	}
+	
+	void addVertexBuffer(PapaVertexBuffer buf) {
+		vBuffers.add(buf);
+		recalculateFileSize();
+	}
+	
+	void removeVertexBuffer(PapaVertexBuffer buf) {
+		removeComponent(vBuffers, buf, "vertex buffer");
+	}
+	
+	void addIndexBuffer(PapaIndexBuffer buf) {
+		iBuffers.add(buf);
+		recalculateFileSize();
+	}
+	
+	void removeIndexBuffer(PapaIndexBuffer buf) {
+		removeComponent(iBuffers, buf, "index buffer");
+	}
+	
+	void addMaterial(PapaMaterial mat) {
+		materials.add(mat);
+		recalculateFileSize();
+	}
+	
+	void removeMaterial(PapaMaterial mat) {
+		removeComponent(materials, mat, "material");
+	}
+	
+	void addMesh(PapaMesh mesh) {
+		meshes.add(mesh);
+		recalculateFileSize();
+	}
+	
+	void removeMesh(PapaMesh mesh) {
+		removeComponent(meshes, mesh, "mesh");
+	}
+	
+	void addSkeleton(PapaSkeleton skeleton) {
+		skeletons.add(skeleton);
+		recalculateFileSize();
+	}
+	
+	void removeSkeleton(PapaSkeleton skeleton) {
+		removeComponent(skeletons, skeleton, "skeleton");
+	}
+	
+	void addModel(PapaModel model) {
+		models.add(model);
+		recalculateFileSize();
+	}
+	
+	void removeModel(PapaModel model) {
+		removeComponent(models, model, "model");
+	}
+	
+	void addAnimation(PapaAnimation animation) {
+		animations.add(animation);
+		recalculateFileSize();
+	}
+	
+	void removeAnimation(PapaAnimation animation) {
+		removeComponent(animations, animation, "animation");
+	}
+	
+	private void removeComponent(ArrayList<? extends PapaComponent> list, PapaComponent comp, String componentType) {
+		int index = indexOfReference(list,comp);
+		if(index==-1)
+			throw new IllegalArgumentException("Cannot remove "+componentType+" which does not belong to this papaFile");
+		list.remove(index);
+		recalculateFileSize();
+	}
+	
 	public PapaString getString(int index) {  // it is unwise to use this method directly unless you know what you're doing. Strings are highly volatile.
+		if(index==-1)
+			return new PapaString("", 0, null);
+		checkAccess(strings,index);
 		return strings.get(index);
 	}
 	
+	public PapaTexture getTexture(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(textures,index);
+		return textures.get(index);
+	}
+	
+	public PapaVertexBuffer getVertexBuffer(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(vBuffers,index);
+		return vBuffers.get(index);
+	}
+	public PapaIndexBuffer getIndexBuffer(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(iBuffers,index);
+		return iBuffers.get(index);
+	}
+	public PapaMaterial getMaterial(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(materials,index);
+		return materials.get(index);
+	}
+	public PapaMesh getMesh(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(meshes,index);
+		return meshes.get(index);
+	}
+	public PapaSkeleton getSkeleton(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(skeletons,index);
+		return skeletons.get(index);
+	}
+	public PapaModel getModel(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(models,index);
+		return models.get(index);
+	}
+	public PapaAnimation getAnimation(int index) {
+		if(index==-1)
+			return null;
+		checkAccess(animations,index);
+		return animations.get(index);
+	}
+	
+	private void checkAccess(ArrayList<? extends PapaComponent> list, int index) {
+		if(index <-1 || index >= list.size())
+			throw new IllegalArgumentException("Invalid component array access.");
+	}
+	
+	int getStringIndex(String string) {  // it is unwise to use this method directly unless you know what you're doing. Strings are highly volatile.
+		if(strings==null)
+			return -1;
+		for(int i =0;i<strings.size();i++)
+			if(strings.get(i).getValue().equals(string))
+				return i;
+		throw new IllegalArgumentException("PapaComponent "+string+" does not belong to this PapaFile ("+toString()+")");
+	}
+	int getTextureIndex(PapaTexture tex) {
+		return getComponentIndex(textures, tex);
+	}
+	int getVertexBufferIndex(PapaVertexBuffer buf) {
+		return getComponentIndex(vBuffers, buf);
+	}
+	int getIndexBufferIndex(PapaIndexBuffer buf) {
+		return getComponentIndex(iBuffers, buf);
+	}
+	int getMaterialIndex(PapaMaterial mat) {
+		return getComponentIndex(materials, mat);
+	}
+	int getMeshIndex(PapaMesh mesh) {
+		return getComponentIndex(meshes, mesh);
+	}
+	int getSkeletonIndex(PapaSkeleton skeleton) {
+		return getComponentIndex(skeletons, skeleton);
+	}
+	int getModelIndex(PapaModel model) {
+		return getComponentIndex(models, model);
+	}
+	int getAnimationIndex(PapaAnimation anim) {
+		return getComponentIndex(animations, anim);
+	}
+	private int getComponentIndex(ArrayList<? extends PapaComponent> list, PapaComponent comp) {
+		if(comp==null)
+			return -1;
+		for(int i =0;i<list.size();i++)
+			if(list.get(i)==comp)
+				return i;
+		throw new IllegalArgumentException("PapaComponent "+comp+" does not belong to this PapaFile ("+toString()+")");
+	}
+
 	public boolean isLinkedFileReferenced(PapaFile other) {
 		return getReferencesToLinkedFile(other)!=0;
 	}
@@ -363,6 +585,13 @@ public class PapaFile extends PapaComponent{
 				count++;
 		}
 		return count;
+	}
+	
+	public boolean containsComponents(int flags) {
+		for(int i =0;i<9;i++)
+			if((flags & 1<<i) != 0 && components[i].size()!=0)
+				return true;
+		return false;
 	}
 
 	public boolean containsLinkedFiles() {
@@ -395,6 +624,22 @@ public class PapaFile extends PapaComponent{
 			removeDependencies(other);
 		String key = getLinkName(other);
 		linkedFiles.remove(key);
+	}
+	
+	public void reloadLinkedTextures() {
+		for(PapaFile p : getLinkedFiles())
+			p.flush();
+		linkedFiles.clear();
+		for(PapaTexture t : textures)
+			if(t.isLinked()) {
+				try {
+					String fullPath = PapaFile.PA_ROOT_DIR + t.getName();
+					PapaFile p = openLinkedPapaFile(fullPath);
+					if(p!=null)
+						addToLinkedFiles(t.getName(), p);
+				} catch(IOException e) {};
+			}
+				
 	}
 	
 	private void removeDependencies(PapaFile other) {
@@ -458,17 +703,19 @@ public class PapaFile extends PapaComponent{
 			
 			readStrings(in);
 			readTextures(in);
-			//readVBuffers(in);
-			//readIBuffers(in);
-			//readMaterials(in);
-			//readMeshes(in);
-			//readSkeletons(in);
-			//readModels(in);
-			//readAnimations(in);
+			readVBuffers(in);
+			readIBuffers(in);
+			readMaterials(in);
+			readMeshes(in);
+			readSkeletons(in);
+			readModels(in);
+			readAnimations(in);
 		} catch (IOException e) {
 			throw e;
 		} catch (BufferUnderflowException b) {
 			throw new IOException(b);
+		} catch(IllegalArgumentException i) {
+			throw new IOException("File data could not be parsed.");
 		} finally {
 			in.clear();
 			in = null;
@@ -497,7 +744,7 @@ public class PapaFile extends PapaComponent{
 	private void readHeader(ByteBuffer in) throws IOException {
 		signature = in.getInt();
 		
-		if(signature != (0x50<<24 | 0x61<<16 | 0x70<<8 | 0x61))
+		if(signature != 0x50617061)
 			throw new IOException("File signature does not match Papa specification.");
 		
 		minorVersion = 	in.getShort();
@@ -534,12 +781,11 @@ public class PapaFile extends PapaComponent{
 	private void readStrings(ByteBuffer in) throws IOException {
 		if (numStrings == 0)
 			return;
+		in.position((int) offsetStringTable);
 		
 		int[] length = 	new int[numStrings];
 		int[] padding = new int[numStrings];
 		long[] offset = new long[numStrings];
-		
-		in.position((int) offsetStringTable);
 		
 		for(int i =0;i<numStrings;i++) {
 			length[i] = 	in.getInt();
@@ -594,7 +840,7 @@ public class PapaFile extends PapaComponent{
 				byte[] buf = new byte[(int) size[i]];
 				in.get(buf);
 				
-				textures.add(new PapaTexture(strings.get(nameIndex[i]).getValue(), format[i],
+				textures.add(new PapaTexture(getString(nameIndex[i]).getValue(), format[i],
 											mips[i], srgb[i], width[i], height[i], buf, this));
 			} else { // file is linked
 				if(PA_ROOT_DIR==null) 
@@ -608,6 +854,307 @@ public class PapaFile extends PapaComponent{
 			}
 			
 		}
+	}
+	
+	private void readVBuffers(ByteBuffer in) throws IOException {
+		if(numVBuffers == 0)
+			return;
+		in.position((int) offsetVBufferTable);
+		
+		byte[] format = 	new byte[numVBuffers];
+		int[] vertices = 	new int[numVBuffers];
+		long[] size =	 	new long[numVBuffers];
+		long[] offset =	 	new long[numVBuffers];
+		
+		for(int i =0;i<numVBuffers;i++) {
+			format[i] = 	in.get();
+			in.position(in.position() + 3);
+			vertices[i] = 	in.getInt();
+			size[i] =		in.getLong();
+			offset[i] = 	in.getLong();
+		}
+		
+		for(int i=0;i<numVBuffers;i++) {
+			in.position((int) offset[i]);
+			byte[] buf = new byte[(int)size[i]];
+			in.get(buf);
+			vBuffers.add(new PapaVertexBuffer(format[i], vertices[i], buf, this));
+		}
+	}
+	
+	private void readIBuffers(ByteBuffer in) throws IOException {
+		if(numIBuffers == 0)
+			return;
+		in.position((int) offsetIBufferTable);
+		
+		byte[] format = 	new byte[numIBuffers];
+		int[] indices = 	new int[numIBuffers];
+		long[] size =	 	new long[numIBuffers];
+		long[] offset =	 	new long[numIBuffers];
+		
+		for(int i =0;i<numIBuffers;i++) {
+			format[i] = 	in.get();
+			in.position(in.position() + 3);
+			indices[i] = 	in.getInt();
+			size[i] =		in.getLong();
+			offset[i] = 	in.getLong();
+		}
+		
+		for(int i=0;i<numIBuffers;i++) {
+			in.position((int) offset[i]);
+			byte[] buf = new byte[(int)size[i]];
+			in.get(buf);
+			iBuffers.add(new PapaIndexBuffer(format[i], indices[i], buf, this));
+		}
+	}
+	
+	private void readMaterials(ByteBuffer in) throws IOException {
+		if(numMaterials == 0)
+			return;
+		in.position((int) offsetMaterialTable);
+		
+		short[] shaderIndex = 			new short[numMaterials];
+		short[] numVectorParam = 		new short[numMaterials];
+		short[] numTextureParam =		new short[numMaterials];
+		short[] numMatrixParam =		new short[numMaterials];
+		long[] offsetVectorParam = 		new long[numMaterials];
+		long[] offsetTextureParam =		new long[numMaterials];
+		long[] offsetMatrixparam =		new long[numMaterials];
+		
+		for(int i =0;i<numMaterials;i++) {
+			shaderIndex[i] = 		in.getShort();
+			numVectorParam[i] =		in.getShort();
+			numTextureParam[i] =	in.getShort();
+			numMatrixParam[i] =		in.getShort();
+			offsetVectorParam[i] = 	in.getLong();
+			offsetTextureParam[i] = in.getLong();
+			offsetMatrixparam[i] = 	in.getLong();
+		}
+		
+		for(int i=0;i<numMaterials;i++) {
+			byte[] vectorBuf = new byte[0];
+			byte[] textureBuf = new byte[0];
+			byte[] matrixBuf = new byte[0];
+			if(numVectorParam[i] != 0) {
+				vectorBuf = new byte[24 * numVectorParam[i]];
+				in.position((int)offsetVectorParam[i]);
+				in.get(vectorBuf);
+			}
+			
+			if(numTextureParam[i] != 0) {
+				textureBuf = new byte[8 * numTextureParam[i]];
+				in.position((int)offsetTextureParam[i]);
+				in.get(textureBuf);
+			}
+			
+			if(numMatrixParam[i] != 0) {
+				matrixBuf = new byte[72 * numMatrixParam[i]];
+				in.position((int)offsetMatrixparam[i]);
+				in.get(matrixBuf);
+			}
+			
+			materials.add(new PapaMaterial(getString(shaderIndex[i]).getValue(), numVectorParam[i], numTextureParam[i], numMatrixParam[i],
+											vectorBuf, textureBuf, matrixBuf, this));
+		}
+	}
+	
+	private void readMeshes(ByteBuffer in) throws IOException {
+		if(numMeshes == 0)
+			return;
+		in.position((int) offsetMeshTable);
+		
+		short[] vBuffer = 			new short[numMeshes];
+		short[] iBuffer = 			new short[numMeshes];
+		short[] materialGroups =	new short[numMeshes];
+		long[] offset =				new long[numMeshes];
+		
+		for(int i =0;i<numMeshes;i++) {
+			vBuffer[i] = 		in.getShort();
+			iBuffer[i] =		in.getShort();
+			materialGroups[i] =	in.getShort();
+			in.getShort();
+			offset[i] = 	in.getLong();
+		}
+		
+		for(int i=0;i<numMeshes;i++) {
+			byte[] buf = new byte[0];
+			
+			if(materialGroups[i] != 0) {
+				buf = new byte[16 * materialGroups[i]];
+				in.position((int)offset[i]);
+				in.get(buf);
+			}
+			
+			meshes.add(new PapaMesh(getVertexBuffer(vBuffer[i]),getIndexBuffer(iBuffer[i]),materialGroups[i], buf, this));
+		}
+	}
+	
+	private void readSkeletons(ByteBuffer in) throws IOException {
+		if(numSkeletons == 0)
+			return;
+		in.position((int) offsetSkeletonTable);
+		
+		short[] bones = 			new short[numSkeletons];
+		long[] offset =				new long[numSkeletons];
+		
+		for(int i =0;i<numSkeletons;i++) {
+			bones[i] = 		in.getShort();
+			in.getShort();
+			in.getShort();
+			in.getShort();
+			offset[i] = 	in.getLong();
+		}
+		
+		for(int i=0;i<numSkeletons;i++) {
+			byte[] buf = new byte[132 * bones[i]];
+			in.position((int)offset[i]);
+			in.get(buf);
+			
+			skeletons.add(new PapaSkeleton(bones[i], buf, this));
+		}
+	}
+	
+	private void readModels(ByteBuffer in) throws IOException {
+		if(numModels == 0)
+			return;
+		in.position((int) offsetModelTable);
+		
+		short[] name = 				new short[numModels];
+		short[] skeleton = 			new short[numModels];
+		short[] meshBindings = 		new short[numModels];
+		float[][][] modelToScene = 	new float[numModels][4][4];
+		long[] offset =				new long[numModels];
+		
+		for(int i =0;i<numModels;i++) {
+			name[i] = 						in.getShort();
+			skeleton[i] = 					in.getShort();
+			meshBindings[i] = 				in.getShort();
+			in.getShort();
+			
+			for(int y = 0 ;y<4;y++)
+				for(int x = 0;x<4;x++)
+					modelToScene[i][x][y] = in.getFloat();
+			
+			offset[i] = 					in.getLong();
+		}
+		
+		for(int i=0;i<numModels;i++) {
+			PapaMeshBinding[] bindings = readMeshBindings(in, meshBindings[i], offset[i]);
+			
+			models.add(new PapaModel(getString(name[i]).getValue(), getSkeleton(skeleton[i]), modelToScene[i], bindings, this));
+		}
+	}
+	
+	private PapaMeshBinding[] readMeshBindings(ByteBuffer in, short numMeshBindings, long offsetMeshBindingTable) {
+		if(numMeshBindings == 0)
+			return new PapaMeshBinding[0];
+		in.position((int) offsetMeshBindingTable);
+		
+		PapaMeshBinding[] meshBindings = new PapaMeshBinding[numMeshBindings];
+		
+		short[] name = 				new short[numMeshBindings];
+		short[] mesh = 				new short[numMeshBindings];
+		short[] boneMappings = 		new short[numMeshBindings];
+		float[][][] meshToModel = 	new float[numMeshBindings][4][4];
+		long[] offset =				new long[numMeshBindings];
+		
+		for(int i =0;i<numMeshBindings;i++) {
+			name[i] = 						in.getShort();
+			mesh[i] = 						in.getShort();
+			boneMappings[i] = 				in.getShort();
+			in.getShort();
+			
+			for(int y = 0 ;y<4;y++)
+				for(int x = 0;x<4;x++)
+					meshToModel[i][x][y] = in.getFloat();
+			
+			offset[i] = 					in.getLong();
+		}
+		
+		for(int i=0;i<numMeshBindings;i++) {
+			
+			byte[] buf = new byte[0];
+			
+			if(boneMappings[i] != 0) {
+				buf = new byte[2 * boneMappings[i]];
+				in.position((int)offset[i]);
+				in.get(buf);
+			}
+			
+			meshBindings[i] = new PapaMeshBinding(getString(name[i]).getValue(), getMesh(mesh[i]), boneMappings[i], meshToModel[i], buf);
+		}
+		
+		return meshBindings;
+	}
+	
+	private void readAnimations(ByteBuffer in) throws IOException {
+		if(numAnimations == 0)
+			return;
+		in.position((int) offsetAnimationTable);
+		
+		short[] name = 				new short[numAnimations];
+		short[] bones = 			new short[numAnimations];
+		int[] frames = 				new int[numAnimations];
+		int[] fps1 =				new int[numAnimations];
+		int[] fps2 =				new int[numAnimations];
+		long[] boneNameTableOffset =new long[numAnimations];
+		long[] transformOffset =	new long[numAnimations];
+		
+		for(int i =0;i<numAnimations;i++) {
+			name[i] = 						in.getShort();
+			bones[i] = 						in.getShort();
+			frames[i] = 					in.getInt();
+			fps1[i] = 						in.getInt();
+			fps2[i] = 						in.getInt();
+			boneNameTableOffset[i] =			in.getLong();
+			transformOffset[i] =			in.getLong();
+		}
+		
+		for(int i=0;i<numAnimations;i++) {
+			byte[] boneBuf = new byte[0];
+			byte[] transformBuf = new byte[0];
+			
+			if(bones[i] != 0) {
+				boneBuf = new byte[2 * bones[i]];
+				in.position((int)boneNameTableOffset[i]);
+				in.get(boneBuf);
+			}
+			
+			if(frames[i] != 0) {
+				transformBuf = new byte[28 * frames[i] * bones[i]];
+				in.position((int)transformOffset[i]);
+				in.get(transformBuf);
+			}
+			
+			animations.add(new PapaAnimation(getString(name[i]).getValue(), bones[i], frames[i], fps1[i], fps2[i], boneBuf, transformBuf, this));
+		}
+	}
+	public int indexOf(PapaString string) {
+		return strings.indexOf(string);
+	}
+	public int indexOf(PapaTexture texture) {
+		return textures.indexOf(texture);
+	}
+	public int indexOf(PapaVertexBuffer vBuffer) {
+		return vBuffers.indexOf(vBuffer);
+	}
+	public int indexOf(PapaIndexBuffer iBuffer) {
+		return iBuffers.indexOf(iBuffer);
+	}
+	public int indexOf(PapaMaterial mat) {
+		return materials.indexOf(mat);
+	}
+	public int indexOf(PapaMesh mesh) {
+		return meshes.indexOf(mesh);
+	}
+	public int indexOf(PapaSkeleton skeleton) {
+		return skeletons.indexOf(skeleton);
+	}
+	public int indexOf(PapaModel model) {
+		return models.indexOf(model);
+	}
+	public int indexOf(PapaAnimation animation) {
+		return animations.indexOf(animation);
 	}
 	
 	@Override
@@ -635,7 +1182,11 @@ public class PapaFile extends PapaComponent{
 	}
 	
 	public void build() {
+		buildSuccessful=false;
 		validateAll();
+		if(testBuildErrorLevel(BuildNotification.ERROR))
+			return;
+		
 		byte[] bytes = new byte[calcFileSize()];
 		ByteBuffer fileBytes = ByteBuffer.wrap(bytes);
 		fileBytes.order(ByteOrder.LITTLE_ENDIAN);
@@ -647,25 +1198,25 @@ public class PapaFile extends PapaComponent{
 		buildHeader(headerBuilder);
 		
 		int offsetIndex = headerBuilder.position();
-		for(int i =0;i<9;i++)
-			headerBuilder.putLong((long)-1);
-		headerBuilder.position(offsetIndex + 8);
 		
-		// write all but strings
-		for(int i=1;i<components.length;i++) {
-			headerBuilder.putLong((long)fileBytes.position());
-			buildComponent(components[i], fileBytes);
+		
+		for(int i=0;i<9;i++) {
+			int index = buildOrder[i];
+			headerBuilder.position(offsetIndex + index * 8);
+			
+			if(components[index].size()!=0)
+				headerBuilder.putLong((long)fileBytes.position());
+			else
+				headerBuilder.putLong(-1);
+			
+			buildComponent(components[index], fileBytes);
 		}
-		
-		// write strings
-		headerBuilder.position(offsetIndex);
-		headerBuilder.putLong((long)fileBytes.position());
-		buildComponent(components[0], fileBytes);
 		
 		fileBytes.position(0);
 		fileBytes.put(header);
 		
 		this.fileBytes = fileBytes.array();
+		buildSuccessful=true;
 	}
 	
 	private int calcFileSize() {
@@ -679,19 +1230,37 @@ public class PapaFile extends PapaComponent{
 	private void validateComponentCount() {
 		this.numTextures = 	(short) textures.size();
 		this.numStrings = 	(short) strings.size();
+		this.numVBuffers =	(short) vBuffers.size();
+		this.numIBuffers =	(short) iBuffers.size();
+		this.numMaterials =	(short) materials.size();
+		this.numMeshes =	(short) meshes.size();
+		this.numSkeletons =	(short) skeletons.size();
+		this.numModels =	(short) models.size();
+		this.numAnimations =(short) animations.size();
 	}
 	
-	private void validateAll() {
+	private BuildNotification[] validateAll() {
+		this.maxErrorLevel=0;
+		ArrayList<BuildNotification> notifications = new ArrayList<BuildNotification>();
 		flushStringTable();
-		for(int i=1;i<components.length;i++)
-			validateComponent(components[i]);
-		validateComponent(components[0]);
+		for(int i=0;i<9;i++) {
+			int index = buildOrder[i];
+			for(BuildNotification n : validateComponent(components[index])) {
+				this.maxErrorLevel = Math.max(n.getType(), this.maxErrorLevel);
+				notifications.add(n);
+			}
+		}
 		validateComponentCount();
+		buildNotifications = notifications.toArray(new BuildNotification[notifications.size()]);
+		return buildNotifications;
 	}
 	
-	private void validateComponent(ArrayList<? extends PapaComponent> comp) {
+	private ArrayList<BuildNotification> validateComponent(ArrayList<? extends PapaComponent> comp) {
+		ArrayList<BuildNotification> notifications = new ArrayList<BuildNotification>();
 		for(PapaComponent p : comp)
-			p.validate();
+			for(BuildNotification b : p.validate())
+				notifications.add(b);
+		return notifications;
 	}
 	
 	private void buildHeader(ByteBuffer b) {
@@ -702,24 +1271,15 @@ public class PapaFile extends PapaComponent{
 		
 		b.putShort((short)numStrings);
 		b.putShort((short)numTextures);
-		/*b.write((short)numVBuffers);
-		b.write((short)numIBuffers);
+		b.putShort((short)numVBuffers);
+		b.putShort((short)numIBuffers);
 		
-		b.write((short)numMaterials);
-		b.write((short)numMeshes);
-		b.write((short)numSkeletons);
-		b.write((short)numModels);
+		b.putShort((short)numMaterials);
+		b.putShort((short)numMeshes);
+		b.putShort((short)numSkeletons);
+		b.putShort((short)numModels);
 		
-		b.write((short)numAnimations);*/
-		b.putShort((short)0);
-		b.putShort((short)0);
-		
-		b.putShort((short)0);
-		b.putShort((short)0);
-		b.putShort((short)0);
-		b.putShort((short)0);
-		
-		b.putShort((short)0);
+		b.putShort((short)numAnimations);
 		b.put(new byte[6]);
 	}
 	
@@ -751,6 +1311,8 @@ public class PapaFile extends PapaComponent{
 	}
 	
 	public int getOrMakeString(String s) {
+		if(s.equals(""))
+			return -1;
 		for(int i = 0;i<strings.size();i++)
 			if(strings.get(i).getValue().equals(s)) {
 				return i;
@@ -765,7 +1327,7 @@ public class PapaFile extends PapaComponent{
 	public void flush() {
 		if(linkedFiles==null)
 			return;
-		PapaFile[] entries = linkedFiles.values().toArray(new PapaFile[linkedFiles.size()]); // error if you directly access values() due to child files modifying the parent files
+		PapaFile[] entries = getLinkedFiles(); // error if you directly access values() due to child files modifying the parent files
 		for(PapaFile p : entries)
 			p.flush();
 		if(isLinked)
@@ -816,7 +1378,7 @@ public class PapaFile extends PapaComponent{
 	}
 	
 	@Override
-	public int hashCode() {
+	public int hashCode() { //TODO
 		final int prime = 31;
 		int result = 17;
 		result = prime * result + (int) (fileSize ^ fileSize>>>32);
@@ -857,8 +1419,8 @@ public class PapaFile extends PapaComponent{
 	}
 
 	@Override
-	protected void validate() {
-		validateAll();
+	protected BuildNotification[] validate() {
+		return validateAll();
 	}
 
 	@Override
@@ -954,4 +1516,41 @@ public class PapaFile extends PapaComponent{
 			comp.addAll(list);
 		return comp;
 	}
+	
+	public void printContents() {
+		for(int i=0;i<components.length;i++)
+			System.out.println(COMPONENT_NAMES[i]+": "+components[i].size());
+	}
+	
+	public static class BuildNotification {
+		public static final int INFO = 0, WARNING = 1, ERROR = 2;
+		private static final String[] errorNames = new String[] {"INFO","WARNING","ERROR"};
+		
+		private PapaComponent component;
+		private int type = 0;
+		private String message;
+		
+		public BuildNotification(PapaComponent comp, int type, String message) {
+			this.type = type;
+			this.message = message;
+		}
+		
+		public PapaComponent getSource() {
+			return component;
+		}
+		
+		public int getType() {
+			return this.type;
+		}
+		
+		public String getMessage() {
+			return this.message;
+		}
+		
+		public String toString() {
+			return errorNames[type]+": "+message;
+		}
+		
+	}
+
 }

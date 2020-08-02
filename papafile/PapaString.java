@@ -22,6 +22,8 @@ package papafile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import papafile.PapaFile.BuildNotification;
+
 public class PapaString extends PapaComponent{
 
 	private String value;
@@ -76,7 +78,9 @@ public class PapaString extends PapaComponent{
 	}
 	
 	@Override
-	protected void validate() {}
+	protected BuildNotification[] validate() {
+		return new BuildNotification[0];
+	}
 
 	@Override
 	protected int headerSize() {

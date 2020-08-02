@@ -21,12 +21,14 @@ package papafile;
 
 import java.nio.ByteBuffer;
 
+import papafile.PapaFile.BuildNotification;
+
 public abstract class PapaComponent {
 	
 	protected ByteBuffer header = null, data = null; // it is vital that the size of data is the same size that getBody() returns.
 	
 	protected int ceilEight(int value) {
-		double val = value; // in the interest of matching PA, always make sure that this operation returns the next non equal multiple of eight
+		double val = value;
 		val/=8;
 		val = Math.ceil(val);
 		return (int)val * 8;
@@ -36,7 +38,7 @@ public abstract class PapaComponent {
 		return ceilEight(value + 1);
 	}
 	
-	protected abstract void validate();
+	protected abstract BuildNotification[] validate();
 	
 	protected abstract int headerSize();
 	

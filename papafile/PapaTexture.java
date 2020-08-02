@@ -33,6 +33,8 @@ import com.github.memo33.jsquish.Squish;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
 import com.github.memo33.jsquish.Squish.CompressionType;
 
+import papafile.PapaFile.BuildNotification;
+
 /**
  * A container class to hold Texture objects. Each PapaTexture has a main texture, and possibly some MipMap textures.
  *
@@ -59,7 +61,7 @@ public class PapaTexture extends PapaComponent{
 	
 	private BufferedImage [] textures, red, green, blue, alpha, luminance;
 	
-	private Converter textureConverter;
+	private TextureConverter textureConverter;
 	
 	public int getNumImages() {
 		checkLinked(false);
@@ -123,7 +125,7 @@ public class PapaTexture extends PapaComponent{
 	
 	public String getFormat() {
 		checkLinked(false);
-		return formats[format - 1]; // format indexed starting at 1
+		return formats[format - 1]; // format for texture indexed starting at 1
 	}
 	
 	public String getName() {
@@ -248,7 +250,11 @@ public class PapaTexture extends PapaComponent{
 		
 		ByteBuffer buf = ByteBuffer.wrap(data);
 		buf.order(ByteOrder.LITTLE_ENDIAN);
-		textureConverter = getInstance(getFormat());
+		try {
+			textureConverter = getInstance(getFormat());
+		} catch (ArrayIndexOutOfBoundsException e) {
+			throw new IOException("Invalid name index");
+		}
 		
 		decodeAll(new TextureInfo(this.mips,this.width,this.height), buf, textureConverter);
 		
@@ -268,7 +274,7 @@ public class PapaTexture extends PapaComponent{
 		this(input,settings,p,p.getFileName());
 	}
 	
-	private void generateTexture(BufferedImage input, Converter textureConverter, ImmutableTextureSettings settings, String name) throws IOException {
+	private void generateTexture(BufferedImage input, TextureConverter textureConverter, ImmutableTextureSettings settings, String name) throws IOException {
 		
 		BufferedImage in = input;
 		int width = in.getWidth();
@@ -362,7 +368,7 @@ public class PapaTexture extends PapaComponent{
 		this.luminance = new BufferedImage[amount];
 	}
 	
-	private Converter getInstance(String format) throws IOException {
+	private TextureConverter getInstance(String format) throws IOException {
 		switch(format) {
 			case "R8G8B8A8":
 				return new R8G8B8A8();
@@ -383,7 +389,7 @@ public class PapaTexture extends PapaComponent{
 		}
 	}
 	
-	private void decodeAll(TextureInfo info, ByteBuffer buf, Converter converter) throws IOException {
+	private void decodeAll(TextureInfo info, ByteBuffer buf, TextureConverter converter) throws IOException {
 		
 		checkData(info,buf,converter);
 		
@@ -397,11 +403,11 @@ public class PapaTexture extends PapaComponent{
 		}
 	}
 	
-	private void checkData(TextureInfo info, ByteBuffer buf, Converter converter) throws IOException {
+	private void checkData(TextureInfo info, ByteBuffer buf, TextureConverter converter) throws IOException {
 		int expectedSize = converter.calcSize(info.width, info.height, info.mips);
 		int actualSize = buf.limit();
 		if(actualSize != expectedSize)
-			throw new IOException("Data size of "+actualSize+" bytes does not match expected size of " + expectedSize+" bytes");
+			throw new IOException("Image data size of "+actualSize+" bytes does not match expected size of " + expectedSize+" bytes");
 	}
 	
 
@@ -417,7 +423,7 @@ public class PapaTexture extends PapaComponent{
 		int nameIndex = parent.getOrMakeString(this.name);
 		header.putShort((short)nameIndex);
 		header.put((byte)this.format);
-		header.put((byte)(((this.mips + 1) & 0b0111_1111) | (srgb ? 0b1000_0000 : 0)));
+		header.put((byte)(((this.mips + (isLinked() ? 0 : 1)) & 0b0111_1111) | (srgb ? 0b1000_0000 : 0)));
 		header.putShort((short)this.width);
 		header.putShort((short)this.height);
 		header.putLong((long)super.data.limit());
@@ -435,11 +441,16 @@ public class PapaTexture extends PapaComponent{
 	public void flush() {
 		parent = linkedFile = null;
 		textures = red = green = blue = alpha = null;
+		textureConverter = null;
+		data = null;
 	}
 
 	@Override
-	protected void validate() {
+	protected BuildNotification[] validate() {
 		parent.getOrMakeString(this.name);
+		if(isLinked && !linkValid())
+			return new BuildNotification[] {new BuildNotification(this, BuildNotification.WARNING, "Linked file \""+getName()+"\" not found in parent")};
+		return new BuildNotification[0];
 	}
 
 	@Override
@@ -467,7 +478,7 @@ public class PapaTexture extends PapaComponent{
 		}
 	}
 	
-	private abstract class Converter {
+	private abstract class TextureConverter {
 		
 		public abstract BufferedImage decode(ByteBuffer buf, TextureInfo info);
 		
@@ -547,7 +558,7 @@ public class PapaTexture extends PapaComponent{
 		}
 	}
 	
-	private class R8G8B8A8 extends Converter {
+	private class R8G8B8A8 extends TextureConverter {
 
 		@Override
 		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
@@ -673,7 +684,7 @@ public class PapaTexture extends PapaComponent{
 	// https://docs.microsoft.com/en-us/windows/win32/direct3d9/opaque-and-1-bit-alpha-textures
 	// https://en.wikipedia.org/wiki/S3_Texture_Compression#DXT1
 	
-	private abstract class DXT extends Converter {
+	private abstract class DXT extends TextureConverter {
 		
 		protected int chunkByteSize = 8;
 		
@@ -985,7 +996,7 @@ public class PapaTexture extends PapaComponent{
 		
 	}
 	
-	private class R8 extends Converter {
+	private class R8 extends TextureConverter {
 
 		@Override
 		public BufferedImage decode(ByteBuffer buf, TextureInfo info) {
@@ -1082,71 +1093,82 @@ public class PapaTexture extends PapaComponent{
 		public String getFormat() {
 			return format;
 		}
-		public void setFormat(String format) {
+		public TextureSettings setFormat(String format) {
 			this.format = format;
+			return this;
 		}
 		public CompressionMethod getCompressionMethod() {
 			return method;
 		}
-		public void setCompressionMethod(CompressionMethod method) {
+		public TextureSettings setCompressionMethod(CompressionMethod method) {
 			this.method = method;
+			return this;
 		}
 		public boolean getGenerateMipmaps() {
 			return generateMipmaps;
 		}
-		public void setGenerateMipmaps(boolean generateMipmaps) {
+		public TextureSettings setGenerateMipmaps(boolean generateMipmaps) {
 			this.generateMipmaps = generateMipmaps;
+			return this;
 		}
 		public int getMipmapResizeMethod() {
 			return mipmapResizeMethod;
 		}
-		public void setMipmapResizeMethod(int mipmapResizeMethod) {
+		public TextureSettings setMipmapResizeMethod(int mipmapResizeMethod) {
 			this.mipmapResizeMethod = mipmapResizeMethod;
+			return this;
 		}
 		public boolean getSRGB() {
 			return SRGB;
 		}
-		public void setSRGB(boolean sRGB) {
+		public TextureSettings setSRGB(boolean sRGB) {
 			SRGB = sRGB;
+			return this;
 		}
 		public boolean getResize() {
 			return resize;
 		}
-		public void setResize(boolean resize) {
+		public TextureSettings setResize(boolean resize) {
 			this.resize = resize;
+			return this;
 		}
 		public int getResizeMethod() {
 			return resizeMethod;
 		}
-		public void setResizeMethod(int resizeMethod) {
+		public TextureSettings setResizeMethod(int resizeMethod) {
 			this.resizeMethod = resizeMethod;
+			return this;
 		}
 		public int getResizeMode() {
 			return resizeMode;
 		}
-		public void setResizeMode(int resizeMode) {
+		public TextureSettings setResizeMode(int resizeMode) {
 			this.resizeMode = resizeMode;
+			return this;
 		}
 		public boolean getLinkEnabled() {
 			return linkEnabled;
 		}
-		public void setLinkEnabled(boolean linkEnabled) {
+		public TextureSettings setLinkEnabled(boolean linkEnabled) {
 			this.linkEnabled = linkEnabled;
+			return this;
 		}
 		public PapaFile getLinkTarget() {
 			return linkTarget;
 		}
-		public void setLinkTarget(PapaFile linkTarget) {
+		public TextureSettings setLinkTarget(PapaFile linkTarget) {
 			this.linkTarget = linkTarget;
+			return this;
 		}
 		public int getLinkMethod() {
 			return linkMethod;
 		}
-		public void setLinkMethod(int linkMethod) {
+		public TextureSettings setLinkMethod(int linkMethod) {
 			this.linkMethod = linkMethod;
+			return this;
 		}
 		public static TextureSettings defaultSettings() {
-			return new TextureSettings("DXT1",CompressionMethod.CLUSTER_FIT,true, RESIZE_TYPE_BICUIBIC, false, RESIZE_TYPE_BICUIBIC,RESIZE_NEAREST, false,false,null,LINK_TYPE_EMBED);
+			return new TextureSettings("DXT5",CompressionMethod.CLUSTER_FIT,true, RESIZE_TYPE_BICUIBIC, true, RESIZE_TYPE_BICUIBIC,RESIZE_NEAREST, false,false,null,LINK_TYPE_EMBED);
 		}
 		
 		public TextureSettings() {};
@@ -1284,8 +1306,8 @@ public class PapaTexture extends PapaComponent{
 	@Override
 	public PapaTexture duplicate() {
 		PapaTexture copy = this;
-		if(copy.isLinked)
-			copy = copy.getLinkedTexture();
+		//if(copy.isLinked)
+		//	copy = copy.getLinkedTexture();
 		try {
 			return new PapaTexture(copy.name,copy.format,(byte) (copy.mips + 1), copy.srgb, copy.width,copy.height, copy.data.clone(),null);
 		} catch (IOException e) {
