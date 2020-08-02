@@ -33,6 +33,7 @@ import javax.swing.filechooser.*;
 import javax.swing.table.DefaultTableModel;
 
 import papafile.*;
+import papafile.PapaFile.BuildNotification;
 import papafile.PapaTexture.*;
 
 public class FileHandler {
@@ -257,6 +258,7 @@ public class FileHandler {
 					try {
 						papaFile = new PapaFile(stream, path);
 					} catch (IOException e) {
+						log("Error on file "+file,e);
 						rejectFile(file, info, e.getMessage());
 						return;
 					} finally {
@@ -264,7 +266,7 @@ public class FileHandler {
 						countDown();
 					}
 					
-					if(papaFile.getNumTextures()==0) {
+					if(papaFile.getNumTextures()==0 && ! Editor.ALLOW_EMPTY_FILES) {
 						rejectFile(file, info, "Papa file contains no images");
 						return;
 					}
@@ -592,6 +594,11 @@ public class FileHandler {
 		}
 	}
 	
+	public static void log(String message, Exception e) {
+		System.err.println(message);
+		e.printStackTrace();
+	}
+	
 	public static boolean checkIsInPA(File f) {
 		try {
 			return f.getCanonicalPath().contains(PapaFile.getPlanetaryAnnihilationDirectory().getCanonicalPath() + File.separator);
@@ -641,39 +648,78 @@ public class FileHandler {
 				selectedExtension = "."+s;
 		
 		if(selectedExtension == null) {
-			if(extensions.length!=1)
-				return null;
 			selectedExtension = "."+extensions[0];
 		}
 		
 		if(!path.endsWith(selectedExtension)) {
 			if(pathLower.endsWith(selectedExtension))
-				return new File(path.substring(0,path.length()-5)+selectedExtension);
+				return new File(path.substring(0,path.length()-selectedExtension.length())+selectedExtension);
 			else
 				return new File(path+selectedExtension);
 		}
 		return input;
 		
 	}
+	
+	public static File replaceExtension(File input, FileNameExtensionFilter filter) {
+		String[] extensions = filter.getExtensions();
+		String path = input.getPath();
+		String pathLower = path.toLowerCase();
+		for(String s : extensions)
+			if(pathLower.endsWith(s))
+				return input;
+		
+		if(!pathLower.endsWith(extensions[0])) {
+			int index = path.lastIndexOf('.');
+			if(index==-1)
+				index = path.length();
+			return new File(path.substring(0,index)+"."+extensions[0]);
+		}
+		return input;
+	}
 
 	public static void writeFile(PapaFile target, File location) throws IOException {
 		
 		FileOutputStream fos = null;
 		try {
+			target.build();
+			if( ! target.buildSuccessful())
+				throw new IOException(generateBuildError(target.getBuildNotifications()));
+			
 			location.createNewFile();
 			fos = new FileOutputStream(location);
-			target.build();
 			byte[] data = target.getFileBytes();
 			fos.write(data);
+			if(!Editor.SUPPRESS_WARNINGS)
+				if (target.testBuildErrorLevel(1))
+					throw new UnsupportedEncodingException(generateBuildWarnings(target.getBuildNotifications())); // build succeeded, but warnings
 		} catch (IOException e1) {
 			throw e1;
 		} finally {
 			try {
-				fos.close();
+				if(fos!=null)
+					fos.close();
 			} catch (IOException e1) {
 				e1.printStackTrace();
 			}
 		}
+	}
+	
+	private static String generateBuildWarnings(BuildNotification[] notifications) {
+		String error = "The file produced the following warnings when being built:\n";
+		for(BuildNotification n : notifications) {
+			error+=n+"\n";
+		}
+		return error;
+	}
+	
+	private static String generateBuildError(BuildNotification[] notifications) {
+		String error = "The following problems occured when attempting to build the file:\n";
+		for(BuildNotification n : notifications) {
+			if(n.getType()==BuildNotification.ERROR)
+				error+=n+"\n";
+		}
+		return error;
 	}
 	
 	public static void exportImage(PapaTexture tex, File file) throws IOException {
@@ -732,23 +778,15 @@ public class FileHandler {
 		File file = enforceExtension(selectedFile, papaFilter);
 		
 		if(file.exists())
-			if(Editor.showError(file.getName() +" already exists.\nDo you want to replace it?", "Confirm Save As", new Object[] {"Yes","No"}, "No") != 0)
+			if(Editor.optionBox(file.getName() +" already exists.\nDo you want to replace it?", "Confirm Save As", new Object[] {"Yes","No"}, "No") != 0)
 				return;
-		
-		if(!confirmDataLoss(target))
-			return;
-		
+		try {
+			writeFile(target,file);
+		} catch (UnsupportedEncodingException e) {
+			target.setFileLocation(file);
+			throw e;
+		}
 		target.setFileLocation(file);
-		writeFile(target,target.getFile());
-	}
-	
-	public static boolean confirmDataLoss(PapaFile target) {
-		if(target.containsNonImageData()) //TODO temporary workaround
-			if(Editor.showError(target.getFileName()+" contains non image data which is not supported."
-					+ "\nSaving will erase all non image data! Are you sure you want to continue?", 
-					"Unsupported Operations", new Object[] {"Yes","No"}, "No") != 0)
-				return false;
-		return true;
 	}
 
 	public static void exportImageTo(PapaTexture activeTexture, File selectedFile, FileNameExtensionFilter filter) throws IOException {

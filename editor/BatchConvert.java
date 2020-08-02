@@ -32,6 +32,8 @@ import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.event.ChangeEvent;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.*;
 
@@ -145,7 +147,7 @@ public class BatchConvert extends JDialog  {
 							optionsSection.toImage.isSelected() ? FileHandler.PAPA_INTERFACE : FileHandler.IMAGE_INTERFACE,
 							optionsSection.toImage.isSelected() ? FileHandler.getImageFilters()[optionsSection.formats.getSelectedIndex() + 1] : FileHandler.getPapaFilter(),
 							papaOptions.getCurrentSettings(), optionsSection.subdirectories.isSelected(), optionsSection.writeLinked.isSelected(),
-							optionsSection.overwrite.isSelected());
+							optionsSection.overwrite.isSelected(), optionsSection.ignoreHierarchy.isSelected());
 			currentTask.execute();
 		});
 		layout.putConstraint(SpringLayout.NORTH, convertButton, -30, SpringLayout.SOUTH, contentPane);
@@ -190,6 +192,14 @@ public class BatchConvert extends JDialog  {
 		optionsSection.overwrite.setSelected(b);
 	}
 	
+	public boolean isIgnoreHierarchy() {
+		return optionsSection.ignoreHierarchy.isSelected();
+	}
+	
+	public void setIgnoreHierarchy(boolean b) {
+		optionsSection.ignoreHierarchy.setSelected(b);
+	}
+	
 	public void showAt(int x, int y) {
 		setBounds(x-width/2, y-height/2, width, height);
 		setVisible(true);
@@ -210,12 +220,12 @@ public class BatchConvert extends JDialog  {
 		private ImmutableTextureSettings settings = null;
 		private ImportInterface importInterface = null;
 		private FileNameExtensionFilter fileExtensionFilter;
-		private boolean papaInput, recursive, writeLinked, overwrite;
+		private boolean papaInput, recursive, writeLinked, overwrite, ignoreHierarchy;
 		private AtomicInteger processedFiles = new AtomicInteger();
 		private float totalFiles;
 		
 		public FileWorker(File inputDirectory, File outputDirectory, ImportInterface importInterface, FileNameExtensionFilter fileExtensionFilter, ImmutableTextureSettings settings,
-							boolean recursive, boolean writeLinked, boolean overwrite) {
+							boolean recursive, boolean writeLinked, boolean overwrite, boolean ignoreHierarchy) {
 			this.input = inputDirectory;
 			this.output = outputDirectory;
 			this.importInterface = importInterface;
@@ -231,6 +241,7 @@ public class BatchConvert extends JDialog  {
 			this.recursive=recursive;
 			this.writeLinked=writeLinked;
 			this.overwrite=overwrite;
+			this.ignoreHierarchy = ignoreHierarchy;
 		}
 		
 		@Override
@@ -318,15 +329,19 @@ public class BatchConvert extends JDialog  {
 			boolean hasMadeDir = false;
 			String rejectMessage ="";
 			if(papaInput) {
+				if(p.getNumTextures()==0) {
+					rejectFile(f, "File contains no textures");
+					return;
+				}
 				for(int i = 0;i<p.getNumTextures();i++) {
 					PapaTexture tex = p.getTexture(0);
 					if(tex.isLinked()) {
 						if( ! writeLinked) {
-							rejectMessage+="Ignoring linked texture; ";
+							rejectMessage+="Ignoring linked texture "+tex.getName()+"; ";
 							continue;
 						}
 						if( ! tex.linkValid()) {
-							rejectMessage+="Linked texture not found; ";
+							rejectMessage+="Linked texture "+tex.getName()+" not found; ";
 							continue;
 						}
 						tex = tex.getLinkedTexture();
@@ -334,13 +349,13 @@ public class BatchConvert extends JDialog  {
 					File targetLocationImage = new File(targetLocation.getParent()+File.separator 
 							+replaceExtension(extractName(tex.getName()),fileExtensionFilter.getExtensions()[0]));
 					if(targetLocationImage.exists() && ! overwrite) {
-						rejectMessage+="File already exists; ";
+						rejectMessage+="File"+targetLocationImage+" already exists; ";
 						continue;
 					}
 					
 					if(!hasMadeDir) {
-						if(! makeDirectory(targetLocation.getParentFile())) {
-							rejectFile(f, "Could not create corresponding directory.");
+						if(!ignoreHierarchy && ! makeDirectory(targetLocation.getParentFile())) {
+							rejectFile(f, "Could not create directory "+targetLocation.getParentFile());
 							return;
 						}
 						hasMadeDir = true;
@@ -352,13 +367,13 @@ public class BatchConvert extends JDialog  {
 					}
 				}
 			} else {
-				if(!makeDirectory(targetLocation.getParentFile())) {
-					rejectFile(f, "Could not create corresponding directory.");
+				if(!ignoreHierarchy && !makeDirectory(targetLocation.getParentFile())) {
+					rejectFile(f, "Could not create directory "+targetLocation.getParentFile());
 					return;
 				}
 				File targetLocationTexture = new File(replaceExtension(targetLocation.getAbsolutePath(),fileExtensionFilter.getExtensions()[0]));
 				if(targetLocationTexture.exists() && ! overwrite) {
-					rejectFile(f, "File already exists");
+					rejectFile(f, "File"+targetLocationTexture+" already exists; ");
 					return;
 				}
 				try {
@@ -397,6 +412,8 @@ public class BatchConvert extends JDialog  {
 			} catch (IOException e) {
 				throw new IllegalArgumentException(e);
 			}
+			if(ignoreHierarchy)
+				return new File(targetDirectory + inputString.substring(inputString.lastIndexOf(File.separatorChar)));
 			return new File(targetDirectory + inputString.substring(sourceDirectory.length()));
 		}
 		
@@ -412,7 +429,7 @@ public class BatchConvert extends JDialog  {
 		private JTextField input, output;
 		private JRadioButton toPapa, toImage;
 		private JComboBox<String> formats;
-		private JCheckBox subdirectories, writeLinked, overwrite;
+		private JCheckBox subdirectories, writeLinked, overwrite, ignoreHierarchy;
 		private JButton browseInput, browseOutput;
 		
 		private final Border defaultTextBorder;
@@ -432,8 +449,26 @@ public class BatchConvert extends JDialog  {
 			layout.putConstraint(SpringLayout.EAST, input, -45, SpringLayout.EAST, this);
 			add(input);
 			
-			input.addActionListener((ActionEvent e) -> {
-				validateSelection();
+			input.getDocument().addDocumentListener(new DocumentListener() {
+				
+				@Override
+				public void removeUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void insertUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void changedUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				private void update() {
+					validateSelection();
+				}
 			});
 			
 			browseInput = new JButton("...");
@@ -465,8 +500,26 @@ public class BatchConvert extends JDialog  {
 			layout.putConstraint(SpringLayout.SOUTH, output, 25, SpringLayout.SOUTH, input);
 			layout.putConstraint(SpringLayout.EAST, output, -45, SpringLayout.EAST, this);
 			
-			output.addActionListener((ActionEvent e) -> {
-				validateSelection();
+			output.getDocument().addDocumentListener(new DocumentListener() {
+				
+				@Override
+				public void removeUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void insertUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				@Override
+				public void changedUpdate(DocumentEvent e) {
+					update();
+				}
+				
+				private void update() {
+					validateSelection();
+				}
 			});
 			add(output);
 			
@@ -538,12 +591,19 @@ public class BatchConvert extends JDialog  {
 			layout.putConstraint(SpringLayout.EAST, writeLinked, 0, SpringLayout.EAST, output);
 			add(writeLinked);
 			
-			overwrite = new JCheckBox("Overwrite destination");
+			overwrite = new JCheckBox("Overwrite Destination");
 			layout.putConstraint(SpringLayout.NORTH, overwrite, 5, SpringLayout.SOUTH, subdirectories);
 			layout.putConstraint(SpringLayout.WEST, overwrite, leftOffset, SpringLayout.WEST, this);
 			layout.putConstraint(SpringLayout.SOUTH, overwrite, 25, SpringLayout.SOUTH, subdirectories);
 			layout.putConstraint(SpringLayout.EAST, overwrite, 50, SpringLayout.WEST, toImage);
 			add(overwrite);
+			
+			ignoreHierarchy = new JCheckBox("Ignore Hierarchy");
+			layout.putConstraint(SpringLayout.NORTH, ignoreHierarchy, 5, SpringLayout.SOUTH, subdirectories);
+			layout.putConstraint(SpringLayout.WEST, ignoreHierarchy, 0, SpringLayout.EAST, subdirectories);
+			layout.putConstraint(SpringLayout.SOUTH, ignoreHierarchy, 25, SpringLayout.SOUTH, subdirectories);
+			layout.putConstraint(SpringLayout.EAST, ignoreHierarchy, 0, SpringLayout.EAST, output);
+			add(ignoreHierarchy);
 			
 			JLabel labelInput = new JLabel("Input:");
 			layout.putConstraint(SpringLayout.NORTH, labelInput, 3, SpringLayout.NORTH, input);

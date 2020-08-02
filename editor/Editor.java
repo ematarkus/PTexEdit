@@ -22,7 +22,6 @@ package editor;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.plaf.FontUIResource;
 import javax.swing.tree.*;
 import javax.swing.border.Border;
 import javax.swing.event.*;
@@ -38,6 +37,7 @@ import com.github.memo33.jsquish.Squish.CompressionMethod;
 
 import editor.FileHandler.*;
 import editor.FileHandler.ImportInfo.ActivityListener;
+import javafx.util.Pair;
 import papafile.*;
 import papafile.PapaTexture.*;
 
@@ -50,11 +50,13 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Editor extends JFrame {
-
+	
+	public 	static boolean ALLOW_EMPTY_FILES = false;
+	public 	static boolean SUPPRESS_WARNINGS = false;
 	private static final long serialVersionUID = 894467903207605180L;
 	private static final String APPLICATION_NAME = "PTexEdit";
-	private static final String VERSION_STRING = "0.2.3";
-	private static final String BUILD_DATE = "June 24, 2020";
+	private static final String VERSION_STRING = "0.3";
+	private static final String BUILD_DATE = "August 1, 2020";
 	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
 	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
@@ -64,9 +66,9 @@ public class Editor extends JFrame {
 	private static final ImageIcon imgPapafile = loadIconFromResources("papafile.png");
 	private static final ImageIcon imgPapafileImage = loadIconFromResources("papafileImage.png");
 	private static final ImageIcon imgPapafileLinked = loadIconFromResources("papafileLinked.png");
-	private static final ImageIcon imgPapafileLinkedImage = loadIconFromResources("papafileLinkedImage.png");
 	private static final ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
 	private static final ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
+	private static final ImageIcon imgPapaFileUnsaved = loadIconFromResources("papafileUnsaved.png");
 	private static final ImageIcon plusIcon = loadIconFromResources("plus.png");
 	private static final ImageIcon minusIcon = loadIconFromResources("minus.png");
 	private static final Properties prop = new Properties();
@@ -93,6 +95,8 @@ public class Editor extends JFrame {
 	
 	private PapaOptions papaOptions;
 	private BatchConvert batchConvert;
+	
+	private int loadCounter = 0;
 	
 	public static void main(String[] args) {
 		applyPlatformChanges();
@@ -153,7 +157,7 @@ public class Editor extends JFrame {
 		e.setLocation(Integer.valueOf(prop.getProperty("Application.Location.X", "100")), Integer.valueOf(prop.getProperty("Application.Location.Y", "100")));
 		e.setBounds(Integer.valueOf(prop.getProperty("Application.Location.X", "100")), Integer.valueOf(prop.getProperty("Application.Location.Y", "100")),
 					Integer.valueOf(prop.getProperty("Application.Size.Width", "1060")), Integer.valueOf(prop.getProperty("Application.Size.Height", "800")));
-		e.mainPanel.setDividerLocation(Integer.valueOf(prop.getProperty("Application.SplitPane.Location", "280")));
+		e.mainPanel.setDividerLocation(Integer.valueOf(prop.getProperty("Application.SplitPane.Location", "395")));
 		e.setExtendedState(Integer.valueOf(prop.getProperty("Application.State", ""+JFrame.NORMAL)));
 		
 		e.menu.setSelectedRadioButton(Integer.valueOf(prop.getProperty("Application.Menu.View.Channels", "0")));
@@ -163,8 +167,14 @@ public class Editor extends JFrame {
 			e.menu.mViewNoAlpha.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Tile", "false")))
 			e.menu.mViewTile.doClick(0);
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.Root", "false")))
+		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.DXT", "false")))
+			e.menu.mViewDXT.doClick(0);
+		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.ShowRoot", "false")))
 			e.menu.mOptionsShowRoot.doClick(0);
+		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.AllowEmpty", "false")))
+			e.menu.mOptionsAllowEmpty.doClick(0);
+		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.SuppressWarnings", "false")))
+			e.menu.mOptionsAllowEmpty.doClick(0);
 		//e.maxThreads = Integer.valueOf(prop.getProperty("Application.Config.MaxThreads", "4"));
 		
 		TextureSettings t = new TextureSettings();
@@ -187,6 +197,7 @@ public class Editor extends JFrame {
 		e.batchConvert.setRecursive(Boolean.valueOf(prop.getProperty("BatchConvert.Recursive", ""+true)));
 		e.batchConvert.setWriteLinkedFiles(Boolean.valueOf(prop.getProperty("BatchConvert.WriteLinked", ""+false)));
 		e.batchConvert.setOverwrite(Boolean.valueOf(prop.getProperty("BatchConvert.Overwrite", ""+false)));
+		e.batchConvert.setIgnoreHierarchy(Boolean.valueOf(prop.getProperty("BatchConvert.IgnoreHierarchy", ""+false)));
 	}
 	
 	private static void addShutdownHooks() {
@@ -261,13 +272,16 @@ public class Editor extends JFrame {
 				prop.setProperty("Application.Size.Width",			""+(int)e.getWidth());
 				prop.setProperty("Application.Size.Height", 		""+(int)e.getHeight());
 			}
-			prop.setProperty("Application.SplitPane.Location", 	""+(int)e.mainPanel.getDividerLocation());
-			prop.setProperty("Application.State", 				""+e.getExtendedState());
-			prop.setProperty("Application.Menu.View.Channels", 	""+e.menu.getSelectedRadioButton());
-			prop.setProperty("Application.Menu.View.Luminance", ""+e.menu.mViewLuminance.isSelected());
-			prop.setProperty("Application.Menu.View.Alpha", 	""+e.menu.mViewNoAlpha.isSelected());
-			prop.setProperty("Application.Menu.View.Tile", 		""+e.menu.mViewTile.isSelected());
-			prop.setProperty("Application.Menu.Options.Root",	""+e.menu.mOptionsShowRoot.isSelected());
+			prop.setProperty("Application.SplitPane.Location", 				""+(int)e.mainPanel.getDividerLocation());
+			prop.setProperty("Application.State", 							""+e.getExtendedState());
+			prop.setProperty("Application.Menu.View.Channels", 				""+e.menu.getSelectedRadioButton());
+			prop.setProperty("Application.Menu.View.Luminance", 			""+e.menu.mViewLuminance.isSelected());
+			prop.setProperty("Application.Menu.View.Alpha", 				""+e.menu.mViewNoAlpha.isSelected());
+			prop.setProperty("Application.Menu.View.Tile", 					""+e.menu.mViewTile.isSelected());
+			prop.setProperty("Application.Menu.View.DXT", 					""+e.menu.mViewDXT.isSelected());
+			prop.setProperty("Application.Menu.Options.ShowRoot",			""+e.menu.mOptionsShowRoot.isSelected());
+			prop.setProperty("Application.Menu.Options.AllowEmpty",			""+e.menu.mOptionsAllowEmpty.isSelected());
+			prop.setProperty("Application.Menu.Options.SuppressWarnings",	""+e.menu.mOptionsSuppressWarnings.isSelected());
 			//prop.setProperty("Application.Config.MaxThreads", 	""+e.maxThreads);
 			
 			ImmutableTextureSettings settings = e.papaOptions.getCurrentSettings();
@@ -285,6 +299,7 @@ public class Editor extends JFrame {
 			prop.setProperty("BatchConvert.Recursive", 			""+b.isRecursive());
 			prop.setProperty("BatchConvert.WriteLinked", 		""+b.isWritingLinkedFiles());
 			prop.setProperty("BatchConvert.Overwrite", 			""+b.isOverwrite());
+			prop.setProperty("BatchConvert.IgnoreHierarchy", 	""+b.isIgnoreHierarchy());
 			
 			if(PapaFile.getPlanetaryAnnihilationDirectory()!=null)
 				prop.setProperty("PapaFile.PADirectory", 			PapaFile.getPlanetaryAnnihilationDirectory().getAbsolutePath());
@@ -304,6 +319,8 @@ public class Editor extends JFrame {
 		private float subProgress = 0f;
 		private float totalSubFiles = 0f;
 		private AtomicInteger currentFileCount = new AtomicInteger();
+		private boolean optimize = false;
+		private int optimizeCounter = 0, optimizeFactor=0;
 		
 		public FileWorker(File...files) {
 			this.files = files;
@@ -342,6 +359,10 @@ public class Editor extends JFrame {
 					@Override
 					public void onGotTotalFiles(int totalFiles) {
 						totalSubFiles = totalFiles;
+						if(totalSubFiles>=50) {
+							optimize = true; // reloading the tree is expensive
+							optimizeFactor = Math.min((int) ((totalSubFiles+100) / 50), 8); // min 3 files per reload, max 8
+						}
 					}
 					@Override
 					public void onEndProcessFile(File f, String threadName, boolean success) {
@@ -369,7 +390,7 @@ public class Editor extends JFrame {
 		protected void process(List<PapaFile> chunks) {
 			if(chunks.size()!=0) {
 				for(PapaFile p : chunks)
-					configSelector.addToTree(p);
+					configSelector.addToTreeOrSelect(p,!optimize || optimizeCounter++%optimizeFactor==0 || optimizeCounter == totalSubFiles);
 			}
 		}
 		
@@ -431,6 +452,17 @@ public class Editor extends JFrame {
 		}
 	}
 	
+	private synchronized void startOperation() {
+		setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		loadCounter++;
+	}
+	
+	private synchronized void endOperation() {
+		loadCounter--;
+		if(loadCounter==0)
+			setCursor(Cursor.getDefaultCursor());
+	}
+	
 	private void readAll(File...files) {
 		FileWorker fw = new FileWorker(files);
 		fw.execute();
@@ -442,11 +474,10 @@ public class Editor extends JFrame {
 	}
 	
 	private void setReadingFiles(boolean b) {
-		if(b)
-			setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-		else
-			setCursor(Cursor.getDefaultCursor());
-		
+		if(b && ! menu.readingFiles)
+			startOperation();
+		else if(!b && menu.readingFiles)
+			endOperation();
 		menu.setReadingFiles(b);
 		boolean enable = !b;
 		imagePanel.dragDropEnabled = enable;
@@ -462,13 +493,16 @@ public class Editor extends JFrame {
 	}
 	
 	private void setActiveFile(PapaFile p) {
+		if(p==null) {
+			unloadFileFromConfig();
+			return;
+		}
 		PapaFile old = activeFile;
 		activeFile = p;
 		int index = Math.max(0, configSection1.getActiveTextureIndex(activeFile));
 		activeTexture = activeFile.getNumTextures()!=0 ? activeFile.getTexture(index) : null;
 		
 		boolean changed = old!=activeFile;
-		
 		menu.applySettings(activeFile, index, activeTexture ,changed);
 		configSection1.applySettings(activeFile, index, activeTexture ,changed);
 		configSection2.applySettings(activeFile, index, activeTexture ,changed);
@@ -554,7 +588,6 @@ public class Editor extends JFrame {
 			public void adjustmentValueChanged(AdjustmentEvent e) {
 				imagePanel.repaint();
 			}
-			
 		};
 		
 		horizontal = new JScrollBar();
@@ -619,9 +652,9 @@ public class Editor extends JFrame {
 		private static final long serialVersionUID = 275294845979597235L;
 
 		private ButtonGroup mViewChannelItems;
-		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mOptionsShowRoot;
+		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mViewDXT, mOptionsShowRoot, mOptionsAllowEmpty, mOptionsSuppressWarnings;
 		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
-		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mEditCopy, mEditPaste;
+		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mToolsReloadLinked, mEditCopy, mEditPaste;
 		private boolean clipboardHasImage, readingFiles;
 		
 		public int getSelectedRadioButton() { // I hate ButtonGroup.
@@ -650,18 +683,19 @@ public class Editor extends JFrame {
 			mFileExport.setEnabled(false);
 			mEditCopy.setEnabled(false);
 			mToolsShowInFileBrowser.setEnabled(false);
+			mToolsReloadLinked.setEnabled(false);
 		}
 
 		public void applySettings(PapaFile activeFile, int index, PapaTexture tex, boolean same) {
-			if(activeFile.getNumTextures() == 0 || tex == null) {
-				unload();
-				return;
-			}
+			boolean hasTextures = !(activeFile.getNumTextures() == 0 || tex == null);
+			boolean linkValid = (!tex.isLinked() || tex.linkValid());
 			mFileSave.setEnabled(true);
 			mFileSaveAs.setEnabled(true);
-			mFileExport.setEnabled(true);
-			mEditCopy.setEnabled(true);
 			mToolsShowInFileBrowser.setEnabled(activeFile.getFile()!=null && activeFile.getFile().exists());
+			
+			mFileExport.setEnabled(hasTextures && linkValid);
+			mEditCopy.setEnabled(hasTextures && linkValid);
+			mToolsReloadLinked.setEnabled(hasTextures && activeFile!=null);
 		}
 
 		public void setSelectedRadioButton(int index) {
@@ -682,15 +716,15 @@ public class Editor extends JFrame {
 				saveFileAs(target);
 				return;
 			}
-			if(!FileHandler.confirmDataLoss(target))
-				return;
 			
+			startOperation();
 			try {
 				FileHandler.writeFile(target,target.getFile());
-				configSelector.selectedNodeChanged();
+				configSelector.selectedPapaFileNodeChanged();
 			} catch (IOException e1) {
-				showError(e1.getMessage(), "Save Error", new Object[] {"Ok"}, "Ok");
+				showError(e1.getMessage(), "Save", new Object[] {"Ok"}, "Ok");
 			}
+			endOperation();
 		}
 		
 		private void saveFileAs(PapaFile target) {
@@ -699,18 +733,30 @@ public class Editor extends JFrame {
 			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
 			j.setDialogTitle("Save Papa File");
 			j.setFileFilter(FileHandler.getPapaFilter());
-			if(target.getFile()!=null)
-				j.setSelectedFile(target.getFile());
+			if(target.getFile()!=null) {
+				if(!target.getFile().exists())
+					j.setCurrentDirectory(getLowestExistingDirectory(target.getFile()));
+				j.setSelectedFile(FileHandler.replaceExtension(target.getFile(), FileHandler.getPapaFilter()));
+			}
+			startOperation();
 			if (j.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
 				try {
 					FileHandler.saveFileTo(target, j.getSelectedFile());
-					configSelector.selectedNodeChanged();
 				} catch (IOException e1) {
-					showError(e1.getMessage(), "Save Error", new Object[] {"Ok"}, "Ok");
+					showError(e1.getMessage(), "Save As...", new Object[] {"Ok"}, "Ok");
 				}
+				configSelector.selectedPapaFileNodeChanged();
 			}
+			endOperation();
 		}
 		
+		private File getLowestExistingDirectory(File file) {
+			while(file!=null && !file.exists()) {
+				file = file.getParentFile();
+			}
+			return file;
+		}
+
 		private void clipboardChanged() {
 			try {
 				for(DataFlavor flavor : clipboard.getAvailableDataFlavors())
@@ -723,6 +769,26 @@ public class Editor extends JFrame {
 				return;
 			}
 			clipboardHasImage = false;
+		}
+		
+		public void changeMediaDirectory() {
+			JFileChooser j = new JFileChooser();
+			j.setDialogTitle("Set Media Directory");
+			
+			j.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+			if(PapaFile.getPlanetaryAnnihilationDirectory() != null)
+				j.setSelectedFile(PapaFile.getPlanetaryAnnihilationDirectory());
+			
+			if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+				File file = j.getSelectedFile();
+				if(file.listFiles((File dir, String name)-> name.equals("pa")).length==0 && 
+					Editor.optionBox("The selected directory does not include the /pa subdirectory.\n Are you sure this is the correct directory?",
+									"Confirm Directory", new Object[] {"Yes","Cancel"}, "Cancel") != 0) {
+						return;
+				}
+				PapaFile.setPADirectory(file);
+				
+			}
 		}
 		
 		public MenuBar() {
@@ -797,6 +863,7 @@ public class Editor extends JFrame {
 			mFileExport.setMnemonic('e');
 			mFileExport.setEnabled(false);
 			mFileExport.addActionListener((ActionEvent e) -> {
+				
 				JFileChooser j = new JFileChooser();
 				
 				j.setFileSelectionMode(JFileChooser.FILES_ONLY);
@@ -807,19 +874,25 @@ public class Editor extends JFrame {
 				
 				j.setFileFilter(FileHandler.getImageFilter("png"));
 				
-				if(activeFile.getFile()!=null)
-					j.setCurrentDirectory(activeFile.getFile());
+				if(activeFile.getFile()!=null) {
+					if(activeFile.getFile().exists())
+						j.setSelectedFile(FileHandler.replaceExtension(activeFile.getFile(), FileHandler.getImageFilter("png")));
+					else
+						j.setCurrentDirectory(getLowestExistingDirectory(activeFile.getFile()));
+				}
 				
 				PapaTexture tex = activeTexture;
 				if(tex.isLinked() && tex.linkValid())
 					tex = tex.getLinkedTexture();
 				
+				startOperation();
 				if (j.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
 					try {
 						FileHandler.exportImageTo(tex, j.getSelectedFile(), (FileNameExtensionFilter)j.getFileFilter());
 					} catch (IOException e1) {
 						showError(e1.getMessage(), "Export Error", new Object[] {"Ok"}, "Ok");
 					}
+				endOperation();
 			});
 			
 			JSeparator separator_2 = new JSeparator();
@@ -882,7 +955,7 @@ public class Editor extends JFrame {
 			mViewChannelItems = new ButtonGroup();
 			
 			mViewChannelRGB = new JRadioButtonMenuItem("RGB",true);
-			mViewChannelRGB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+			mViewChannelRGB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
 			mViewChannel.add(mViewChannelRGB);
 			mViewChannelItems.add(mViewChannelRGB);
 			mViewChannelRGB.addActionListener((ActionEvent e) -> {
@@ -956,6 +1029,16 @@ public class Editor extends JFrame {
 				imagePanel.setTile(mViewTile.isSelected());
 			});
 			
+			mView.add(new JSeparator());
+			
+			mViewDXT = new JCheckBoxMenuItem("DXT Grid");
+			mViewDXT.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+			mViewDXT.setMnemonic('d');
+			mView.add(mViewDXT);
+			mViewDXT.addActionListener((ActionEvent e) -> {
+				imagePanel.showDXT(mViewDXT.isSelected());
+			});
+			
 			
 			JMenu mTools = new JMenu("Tools");
 			mTools.setMnemonic('t');
@@ -985,6 +1068,18 @@ public class Editor extends JFrame {
 				}
 			});
 			
+			mTools.add(new JSeparator());
+			
+			mToolsReloadLinked = new JMenuItem("Reload Linked Files");
+			mToolsReloadLinked.setEnabled(false);
+			mToolsReloadLinked.setMnemonic('c');
+			mTools.add(mToolsReloadLinked);
+			mToolsReloadLinked.addActionListener((ActionEvent e) -> {
+				activeFile.reloadLinkedTextures();
+				configSelector.reloadTopLevelSelectedNode();
+				setActiveFile(activeFile);
+			});
+			
 			
 			//JMenuItem mToolsReload = new JMenuItem("Reload File"); TODO
 			//mTools.add(mToolsReload);
@@ -998,23 +1093,7 @@ public class Editor extends JFrame {
 			mOptionsSetDirectory.setMnemonic('s');
 			mOptions.add(mOptionsSetDirectory);
 			mOptionsSetDirectory.addActionListener((ActionEvent e) -> {
-				JFileChooser j = new JFileChooser();
-				j.setDialogTitle("Set Media Directory");
-				
-				j.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-				if(PapaFile.getPlanetaryAnnihilationDirectory() != null)
-					j.setSelectedFile(PapaFile.getPlanetaryAnnihilationDirectory());
-				
-				if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-					File file = j.getSelectedFile();
-					if(file.listFiles((File dir, String name)-> name.equals("pa")).length==0 && 
-						Editor.optionBox("The selected directory does not include the /pa subdirectory.\n Are you sure this is the correct directory?",
-										"Confirm Directory", new Object[] {"Yes","Cancel"}, "Cancel") != 0) {
-							return;
-					}
-					PapaFile.setPADirectory(file);
-					
-				}
+				changeMediaDirectory();
 			});
 			
 			JMenuItem mOptionsImageSettings = new JMenuItem("View Import Settings");
@@ -1037,6 +1116,21 @@ public class Editor extends JFrame {
 			});
 			mOptionsShowRoot.setMnemonic('a');
 			
+			mOptionsAllowEmpty = new JCheckBoxMenuItem("Allow Non-Image Files");
+			mOptions.add(mOptionsAllowEmpty);
+			mOptionsAllowEmpty.addActionListener((ActionEvent e) -> {
+				ALLOW_EMPTY_FILES = mOptionsAllowEmpty.isSelected();
+				if(!ALLOW_EMPTY_FILES)
+					configSelector.removeEmptyFiles();
+			});
+			mOptionsAllowEmpty.setMnemonic('n');
+			
+			mOptionsSuppressWarnings = new JCheckBoxMenuItem("Suppress Warnings");
+			mOptions.add(mOptionsSuppressWarnings);
+			mOptionsSuppressWarnings.addActionListener((ActionEvent e) -> {
+				SUPPRESS_WARNINGS = mOptionsSuppressWarnings.isSelected();
+			});
+			mOptionsSuppressWarnings.setMnemonic('s');
 			
 			JMenu mHelp = new JMenu("Help");
 			mHelp.setMnemonic('h');
@@ -1353,19 +1447,6 @@ public class Editor extends JFrame {
 		public void applySettings(PapaFile pf, int image, PapaTexture tex, boolean changed) {
 			if(changed) {
 				setTextureCount(pf.getNumTextures());
-				spinnerImage.setValue(0);
-				if(tex==null) { // can only be true if we changed texture files
-					spinnerImage.setEnabled(false);
-					spinnerMipmap.setEnabled(false);
-					imageName.setEnabled(false);
-					filePath.setEnabled(false);
-					filePathLabel.setEnabled(false);
-					srgb.setEnabled(false);
-					resizeButton.setEnabled(false);
-					changeFormatButton.setEnabled(false);
-					imagePanel.setImage(null);
-					return;
-				}
 			}
 			
 			filePath.setBorder(defaultButtonBorder);
@@ -1380,13 +1461,27 @@ public class Editor extends JFrame {
 				filePath.setEnabled(false);
 				filePath.setText("");
 			}
-			
 			spinnerImage.setValue(image);
-			applySettings(tex);
 			
+			applySettings(tex);
 		}
 		
 		private void applySettings(PapaTexture tex) {
+			if(tex==null) {
+				spinnerImage.setEnabled(false);
+				spinnerMipmap.setEnabled(false);
+				imageName.setEnabled(false);
+				imageName.setText("");
+				filePath.setEnabled(false);
+				filePathLabel.setEnabled(false);
+				srgb.setEnabled(false);
+				srgb.setSelected(false);
+				resizeButton.setEnabled(false);
+				changeFormatButton.setEnabled(false);
+				imagePanel.setImage(null);
+				return;
+			}
+			
 			PapaTexture t = tex;
 			boolean enable = tex!=null;
 			
@@ -1404,7 +1499,6 @@ public class Editor extends JFrame {
 			
 			if(t.isLinked()) {
 				spinnerMipmap.setEnabled(false);
-				imageName.setEnabled(false);
 				srgb.setEnabled(false);
 				resizeButton.setEnabled(false);
 				changeFormatButton.setEnabled(false);
@@ -1425,10 +1519,14 @@ public class Editor extends JFrame {
 			
 		}
 		
-		private void refreshActiveTextureLinks() {
+		private void refreshActiveTexture() {
 			if(activeTexture.isLinked() && ! activeTexture.linkValid()) {
+				if(imageName.getBorder()==defaultButtonBorder)
+					imagePanel.setImage(activeTexture.getLinkedTexture());
 				imageName.setBorder(BorderFactory.createLineBorder(Color.red));
 			} else {
+				if(imageName.getBorder()!=defaultButtonBorder)
+					imagePanel.setImage(activeTexture.getLinkedTexture());
 				imageName.setBorder(defaultButtonBorder);
 			}
 			configSelector.selectedNodeChanged();
@@ -1542,7 +1640,7 @@ public class Editor extends JFrame {
 					if(name.equals(""))
 						name = "<no name>";
 					activeTexture.setName(name);
-					refreshActiveTextureLinks();
+					refreshActiveTexture();
 				}
 			});
 			
@@ -1643,8 +1741,11 @@ public class Editor extends JFrame {
 			spinnerImage.addChangeListener(new ChangeListener() {
 				@Override
 				public void stateChanged(ChangeEvent e) {
-					if(activeFile!=null)
-						setActiveTexture(activeFile.getTexture(getSelectedFileImageIndex()));
+					if(activeFile!=null && activeFile.getNumTextures()!=0) {
+						PapaTexture target = activeFile.getTexture(getSelectedFileImageIndex());
+						if(target!=activeTexture)
+							setActiveTexture(target);
+					}
 				}
 			});
 		}
@@ -1668,18 +1769,18 @@ public class Editor extends JFrame {
 				else
 					fileSizeValueLabel.setText(String.format("%.2f",(double)pf.getFileSize()/1048576d)+" MB");
 				imagesValueLabel.setText(""+pf.getNumTextures());
-				if(tex==null) {
-					widthValueLabel.setText("");
-					heightValueLabel.setText("");
-					formatValueLabel.setText("");
-					mipmapsValueLabel.setText("");
-					return;
-				}
 			}
 			applySettings(tex);
 		}
 		
 		private void applySettings(PapaTexture tex) {
+			if(tex==null) {
+				widthValueLabel.setText("");
+				heightValueLabel.setText("");
+				formatValueLabel.setText("");
+				mipmapsValueLabel.setText("");
+				return;
+			}
 			PapaTexture t = tex;
 			setTextColour(defaultTextColour);
 			if(t.isLinked()) {
@@ -1833,26 +1934,132 @@ public class Editor extends JFrame {
 		private final JScrollPane treeScrollPane;
 		private final DefaultTreeModel treeModel;
 		private boolean alwaysShowRoot;
+		private HashSet<TreePath> expandedPaths = new HashSet<TreePath>();
 		
 		public DefaultMutableTreeNode refreshEntry(DefaultMutableTreeNode node) {
-			DefaultMutableTreeNode added = null;
-			DefaultMutableTreeNode parent = (DefaultMutableTreeNode) node.getParent();
-			if(parent == null)
-				return null;
 			PapaFile p = getAssociatedPapaFile(node);
 			if(p==null)
-				return null;
-			removeFromTree(node);
-			if(p.getNumTextures()!=0)
-				added = addToTree(p, parent);
-			treeModel.reload(parent);
-			return added;
+				return node;
+			return refreshEntry(node, p);
+		}
+		
+		public DefaultMutableTreeNode refreshEntry(DefaultMutableTreeNode node, PapaFile p) {
+			DefaultMutableTreeNode parent = (DefaultMutableTreeNode) node.getParent();
+			if(parent == null)
+				parent = root;
+			if(p==null)
+				return node;
 			
+			if(p.getNumTextures()!=0 || ALLOW_EMPTY_FILES) {
+				removeChildrenFromNode(node);
+				DefaultMutableTreeNode first = generateHierarchy(p);
+				for(DefaultMutableTreeNode n : getChildren(first))
+					node.add(n);
+				node.setUserObject(first.getUserObject());
+			}
+			reloadAndExpand(parent);
+			select(new TreePath(node.getPath()));
+			return node;
+		}
+
+		private void reloadAndExpand(DefaultMutableTreeNode node) {
+			TreePath[] selected = fileTree.getSelectionPaths();
+			TreePath mainSelect = fileTree.getSelectionPath();
+			ArrayList<TreePath> selectedArray = new ArrayList<TreePath>();
+			if(selected!=null)
+				for(TreePath t : selected)
+					selectedArray.add(t);
+			if(mainSelect!=null) {
+				selectedArray.remove(mainSelect);
+				selectedArray.add(0,mainSelect);
+			}
+			
+			@SuppressWarnings("unchecked")
+			HashSet<TreePath> expanded = (HashSet<TreePath>) expandedPaths.clone();
+			
+			treeModel.reload(node);
+			
+			// Expanding paths
+			for(TreePath t : expanded) {
+				fileTree.expandPath(t);
+			}
+			
+			removeIfAncestor(root, expanded); // find all paths which do not exist anymore
+			for(TreePath t : expanded) {
+				TreePath similar = findSimilar(t);
+				if(similar != null) {
+					fileTree.expandPath(similar);
+				}
+			}
+			
+			expandedPaths.removeAll(expanded); // remove non existent paths
+			
+			ArrayList<TreePath> toSelect = new ArrayList<TreePath>();
+			for(TreePath t : selectedArray) {
+				TreePath similar = findSimilar(t);
+				if(similar != null)
+					toSelect.add(similar);
+			}
+			fileTree.setSelectionPaths(toSelect.toArray(new TreePath[toSelect.size()]));
+		}
+
+		private void removeIfAncestor(DefaultMutableTreeNode node, Collection<TreePath> c) {
+			for(Iterator<TreePath> treeIterator = c.iterator();treeIterator.hasNext();) {
+				DefaultMutableTreeNode n = (DefaultMutableTreeNode) treeIterator.next().getLastPathComponent();
+				if(n.isNodeAncestor(node))
+					treeIterator.remove();
+			}
+		}
+
+		private TreePath findSimilar(TreePath t) { // expensive operation
+			DefaultMutableTreeNode n = (DefaultMutableTreeNode) t.getLastPathComponent();
+			if(n.isNodeAncestor(root))
+				return t;
+			
+			TreeNode[] newPath = new TreeNode[t.getPathCount()];
+			newPath[0] = root;
+			
+			DefaultMutableTreeNode current = root;
+			for(int i = 1;i<t.getPathCount();i++) {
+				DefaultMutableTreeNode test = (DefaultMutableTreeNode) t.getPathComponent(i);
+				Object testComp = test.getUserObject();
+				
+				DefaultMutableTreeNode child = getSimilarChildFromObject(current, testComp);
+				if(child==null)
+					return null;
+				
+				newPath[i] = child;
+				current = child;
+			}
+			return new TreePath(newPath);
+		}
+		
+		private DefaultMutableTreeNode getSimilarChildFromObject(DefaultMutableTreeNode host, Object o) {
+			for(@SuppressWarnings("unchecked") Enumeration<DefaultMutableTreeNode> e = host.children();e.hasMoreElements();) {
+				DefaultMutableTreeNode child = e.nextElement();
+				Object childComp = child.getUserObject();
+				if(o.getClass()==String.class ? o.equals(childComp) : o == childComp)
+					return child;
+			}
+			return null;
 		}
 
 		public void setAlwaysShowRoot(boolean selected) {
 			this.alwaysShowRoot = selected;
 			reloadAll();
+		}
+		
+		public void removeEmptyFiles() {
+			SwingUtilities.invokeLater(() -> {
+				boolean changed = false;
+				for(DefaultMutableTreeNode n : getTopLevelNodes())
+					if(n.getUserObject().getClass()==PapaFile.class && ((PapaFile) n.getUserObject()).getNumTextures()==0) {
+						changed = true;
+						root.remove(n);
+					}
+				if(changed)
+					reloadAndExpand(root);
+			});
 		}
 		
 		public void reloadAll() {
@@ -1867,12 +2074,12 @@ public class Editor extends JFrame {
 				root.removeAllChildren();
 				
 				for(PapaFile p : papafiles) {
-					DefaultMutableTreeNode n = addToTree(p);
+					DefaultMutableTreeNode n = addToTree(p, false);
 					if(p == selected)
 						toSelect = n;
 				}
 				
-				treeModel.reload();
+				reloadAndExpand(root);
 				if(toSelect!=null) {
 					TreePath path = new TreePath(toSelect.getPath());
 					select(path);
@@ -1893,34 +2100,65 @@ public class Editor extends JFrame {
 			if(lastSelected==null)
 				return;
 			treeModel.nodeChanged(lastSelected);
-			repaint();
+		}
+		
+		public void selectedPapaFileNodeChanged() {
+			if(lastSelected==null)
+				return;
+			DefaultMutableTreeNode node = lastSelected;
+			while(node!=null && node.getUserObject()!=activeFile)
+				node = (DefaultMutableTreeNode) node.getParent();
+			if(node!=null)
+				treeModel.nodeChanged(node);
+			else
+				repaint(); // default if we miss
+		}
+		
+		public void reloadTopLevelSelectedNode() {
+			if(lastSelected==null)
+				return;
+			DefaultMutableTreeNode node = getLowestUnlinkedNode(lastSelected);
+			if(node==null)
+				node = getTopLevelNodeFromPapaFile(activeFile);
+			refreshEntry(node);
 		}
 
 		public void removeFromTree(DefaultMutableTreeNode node) {
 			DefaultMutableTreeNode parent = (DefaultMutableTreeNode) node.getParent();
 			removeFromTreeHelper(node);
-			treeModel.reload(parent);
+			reloadAndExpand(parent);
 		}
 		
-		private void removeFromTreeHelper(DefaultMutableTreeNode node) {
+		private void removeChildrenFromNode(DefaultMutableTreeNode node) {
+			for(DefaultMutableTreeNode n : getChildren(node))
+				removeFromTreeHelper(n);
+		}
+		
+		private DefaultMutableTreeNode[] getChildren(DefaultMutableTreeNode node) {
+			ArrayList<DefaultMutableTreeNode> nodes = new ArrayList<DefaultMutableTreeNode>();
 			@SuppressWarnings("unchecked")
 			Enumeration<DefaultMutableTreeNode> e = node.children();
 			while(e.hasMoreElements()) {
-				removeFromTree(e.nextElement());
+				nodes.add(e.nextElement());
 			}
+			return nodes.toArray(new DefaultMutableTreeNode[nodes.size()]);
+		}
+
+		private void removeFromTreeHelper(DefaultMutableTreeNode node) {
+			for(DefaultMutableTreeNode n : getChildren(node))
+				removeFromTreeHelper(n);
 			node.removeFromParent();
-			node.setParent(null);
 		}
 		
-		private DefaultMutableTreeNode getLowestUnlikedNode(DefaultMutableTreeNode node) {
-			if(node==null)
+		private DefaultMutableTreeNode getLowestUnlinkedNode(DefaultMutableTreeNode node) {
+			if(node==null || node.getParent()==null)
 				return null;
 			Object o = node.getUserObject();
 			if(o instanceof String)
-				return getLowestUnlikedNode((DefaultMutableTreeNode)(node.getParent()));
+				return getLowestUnlinkedNode((DefaultMutableTreeNode)(node.getParent()));
 			
 			if(o instanceof PapaTexture) { // a texture could either be a top level node, or texture in a file.
-				DefaultMutableTreeNode result = getLowestUnlikedNode((DefaultMutableTreeNode)(node.getParent()));
+				DefaultMutableTreeNode result = getLowestUnlinkedNode((DefaultMutableTreeNode)(node.getParent()));
 				if(((PapaTexture)o).isLinked())
 					return result;
 				if(result==null)
@@ -1933,7 +2171,7 @@ public class Editor extends JFrame {
 			if(p==null)
 				return null;
 			if(p.isLinkedFile())
-				return getLowestUnlikedNode((DefaultMutableTreeNode)(node.getParent()));
+				return getLowestUnlinkedNode((DefaultMutableTreeNode)(node.getParent()));
 			return node;
 		}
 		
@@ -1963,28 +2201,61 @@ public class Editor extends JFrame {
 				if(o instanceof PapaFile) {
 					PapaFile p = (PapaFile) o;
 					this.setText(p.getFileName());
-					if(p.isLinkedFile())
-						this.setIcon(imgPapafileLinked);
-					else
-						this.setIcon(imgPapafile);
+					this.setIcon(createImageIconFor(p));
 				} else if (o instanceof PapaTexture) {
-					PapaTexture p = (PapaTexture) o;
-					this.setText(p.getName());
-					if(p.getParent().isLinkedFile() && !p.getParent().getParent().isLinkedFileReferenced(p.getParent()))
-						this.setIcon(imgPapafileNoLinks);
-					else if(! p.isLinked())
-						this.setIcon(imgPapafileImage);
-					else if(p.linkValid())
-						this.setIcon(imgPapafileLinkedImage);
-					else
-						this.setIcon(imgPapafileError);
+					PapaTexture t = (PapaTexture) o;
+					this.setIcon(createImageIconFor(t));
+					this.setText(t.getName());
 				} else {
 					this.setText(o.toString());
 				}
 				return this;
 			}
+			
+			private ImageIcon createImageIconFor(PapaFile p) {
+				ArrayList<ImageIcon> iconList = new ArrayList<ImageIcon>();
+				if(!p.getFile().exists())
+					iconList.add(imgPapaFileUnsaved);
+				if(p.isLinkedFile())
+					iconList.add(imgPapafileLinked);
+				return createImageIcon((ImageIcon[]) iconList.toArray(new ImageIcon[iconList.size()]));
+			}
+			
+			private ImageIcon createImageIconFor(PapaTexture t) {
+				PapaFile p = t.getParent();
+				if(p==null) // TODO band aid fix for one frame reload bug
+					return createImageIcon();
+				
+				ArrayList<ImageIcon> iconList = new ArrayList<ImageIcon>();
+				
+				if(!p.getFile().exists())
+					iconList.add(imgPapaFileUnsaved);
+				
+				iconList.add(imgPapafileImage);
+				if(t.isLinked())
+					if(t.linkValid())
+						iconList.add(imgPapafileLinked);
+					else
+						iconList.add(imgPapafileError);
+				if(p.isLinkedFile() && !p.getParent().isLinkedFileReferenced(p))
+					iconList.add(imgPapafileNoLinks);
+				return createImageIcon((ImageIcon[]) iconList.toArray(new ImageIcon[iconList.size()]));
+					
+			}
+			
+			private ImageIcon createImageIcon(ImageIcon... composite) {
+				BufferedImage iconCache = new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);
+				Graphics iconGraphics = iconCache.getGraphics();
+				imgPapafile.paintIcon(this, iconGraphics, 0, 0);
+				for(ImageIcon i : composite) {
+					i.paintIcon(this, iconGraphics, 0, 0);
+				}
+				return new ImageIcon(iconCache);
+			}
+			
 		};
 		
+		/*
 		private DefaultMutableTreeNode getNodeFromPapaFile(PapaFile p, DefaultMutableTreeNode n) {
 			if(n.getUserObject() instanceof PapaTexture && ((PapaTexture)n.getUserObject()).getParent().equals(p)
 				|| n.getUserObject() instanceof PapaFile && ((PapaFile)n.getUserObject()).equals(p)) {
@@ -2000,26 +2271,41 @@ public class Editor extends JFrame {
 				if(result!=null)
 					return result;
 			}
-			
+			return null;
+		}*/
+		
+		private DefaultMutableTreeNode getTopLevelNodeFromPapaFile(PapaFile p) {
+			@SuppressWarnings("unchecked")
+			Enumeration<DefaultMutableTreeNode> e = (Enumeration<DefaultMutableTreeNode>)root.children();
+			while(e.hasMoreElements()) {
+				DefaultMutableTreeNode element = e.nextElement();
+				if(element.getUserObject() instanceof PapaTexture && ((PapaTexture)element.getUserObject()).getParent().equals(p)
+						|| element.getUserObject() instanceof PapaFile && ((PapaFile)element.getUserObject()).equals(p)) {
+					fileTree.setSelectionPath(new TreePath(element.getPath()));
+					requestFocus();
+					return element;
+				}
+			}
 			return null;
 		}
 		
-		public DefaultMutableTreeNode addToTree(PapaFile p) {
-			DefaultMutableTreeNode result = getNodeFromPapaFile(p,root);
+		public DefaultMutableTreeNode addToTreeOrSelect(PapaFile p, boolean reload) {
+			DefaultMutableTreeNode result = getTopLevelNodeFromPapaFile(p);
 			if(result!=null) {
-				result = refreshEntry(result);
 				fileTree.setSelectionPath(new TreePath(result.getPath()));
 				requestFocus();
 				return result;
 			}
-			return addToTreeHelper(p);
+			return addToTree(p, reload);
 		}
 		
-		private DefaultMutableTreeNode addToTreeHelper(PapaFile p ) {
-			DefaultMutableTreeNode papaRoot = addToTree(p,root);
-			TreePath selected = new TreePath(papaRoot.getPath());
-			treeModel.reload(root);
-			select(selected);
+		public DefaultMutableTreeNode addToTree(PapaFile p, boolean reload) {
+			DefaultMutableTreeNode papaRoot = addPapaFileToNode(p,root);
+			if(reload) {
+				TreePath selected = new TreePath(papaRoot.getPath());
+				reloadAndExpand(root);
+				select(selected);
+			}
 			return papaRoot;
 		}
 		
@@ -2029,36 +2315,35 @@ public class Editor extends JFrame {
 			treeScrollPane.getHorizontalScrollBar().setValue(0); // ensure that the left of the tree is always visible
 		}
 		
-		private DefaultMutableTreeNode addToTree(PapaFile file, DefaultMutableTreeNode parent) { // potential crash if two files are linked to each other...
+		private DefaultMutableTreeNode addPapaFileToNode(PapaFile file, DefaultMutableTreeNode parent) { // potential crash if two files are linked to each other...
+			DefaultMutableTreeNode papaRoot = generateHierarchy(file);
+			parent.add(papaRoot);
+			return papaRoot;
+		}
+		
+		private DefaultMutableTreeNode generateHierarchy(PapaFile file) {
 			DefaultMutableTreeNode papaRoot = new DefaultMutableTreeNode(file);
 			
 			if(file.containsLinkedFiles()) {
 				// add linked files
 				DefaultMutableTreeNode linked = new DefaultMutableTreeNode("Linked Files");
-				addToTree(linked,papaRoot);
+				papaRoot.add(linked);
 				
 				for(PapaFile l : file.getLinkedFiles())
-					addToTree(l,linked);
+					addPapaFileToNode(l,linked);
 				
 				for(int i =0;i<file.getNumTextures();i++)
 					papaRoot.add(new DefaultMutableTreeNode(file.getTexture(i)));
 				
 				papaRoot.add(linked);
-				treeModel.reload(linked);
 			} else {
-				if( ! alwaysShowRoot && file.getNumTextures()==1 && ! file.getTexture(0).isLinked())
+				if( ! alwaysShowRoot && !file.containsComponents(~PapaFile.TEXTURE & ~PapaFile.STRING) && file.getNumTextures()==1 && ! file.getTexture(0).isLinked())
 					papaRoot.setUserObject(file.getTexture(0));
 				else
 					for(int i =0;i<file.getNumTextures();i++)
 						papaRoot.add(new DefaultMutableTreeNode(file.getTexture(i)));
 			}
-			parent.add(papaRoot);
 			return papaRoot;
-		}
-		
-		private void addToTree(DefaultMutableTreeNode toAdd, DefaultMutableTreeNode parent) {
-			parent.add(toAdd);
-			treeModel.reload(parent);
 		}
 
 		public ConfigPanelSelector() {
@@ -2076,8 +2361,10 @@ public class Editor extends JFrame {
 				@Override
 				public void valueChanged(TreeSelectionEvent e) {
 					TreePath newPath = e.getNewLeadSelectionPath();
+					
 					if(newPath==null) // This happened once and I have no idea why.
 						return;
+					
 					lastSelected = (DefaultMutableTreeNode)newPath.getLastPathComponent();
 					Object o = lastSelected.getUserObject();
 					if(o instanceof PapaFile) {
@@ -2089,6 +2376,19 @@ public class Editor extends JFrame {
 					} else {
 						unloadFileFromConfig();
 					}
+				}
+			});
+			
+			fileTree.addTreeExpansionListener(new TreeExpansionListener() {
+				
+				@Override
+				public void treeExpanded(TreeExpansionEvent e) {
+					expandedPaths.add(e.getPath());
+				}
+				
+				@Override
+				public void treeCollapsed(TreeExpansionEvent e) {
+					expandedPaths.remove(e.getPath());
 				}
 			});
 			
@@ -2114,27 +2414,23 @@ public class Editor extends JFrame {
 			add(unloadButton);
 			unloadButton.addActionListener((ActionEvent e) -> {
 				TreePath[] selected = fileTree.getSelectionPaths();
+				fileTree.clearSelection();
 				if(selected==null)
 					return;
 				unloadFileFromConfig();
 				for(TreePath t : selected) {
-					DefaultMutableTreeNode node = getLowestUnlikedNode((DefaultMutableTreeNode) t.getLastPathComponent());
+					DefaultMutableTreeNode node = getLowestUnlinkedNode((DefaultMutableTreeNode) t.getLastPathComponent());
 					if(node==null) // was already removed
 						continue;
 					PapaFile p = getAssociatedPapaFile(node);
 					if(p==null)
 						continue;
 					
-					DefaultMutableTreeNode parent = (DefaultMutableTreeNode) node.getParent();
-					node.removeAllChildren();
-					node.removeFromParent();
+					removeFromTreeHelper(node);
 					p.flush();
-					treeModel.reload(parent);
-					
 				}
-				fileTree.clearSelection();
+				reloadAndExpand(root);
 			});
-			
 		}
 		
 		private DefaultMutableTreeNode[] getSelectedNodes() {
@@ -2206,6 +2502,11 @@ public class Editor extends JFrame {
 		        	if(node.getUserObject().getClass() == String.class) 
 		        		return false;
 		        
+		        // Selections containing empty Papa Files are not allowed.
+		        for(DefaultMutableTreeNode node : selectedNodes)
+		        	if(node.getUserObject().getClass() == PapaFile.class && ((PapaFile)node.getUserObject()).getNumTextures()==0) 
+		        		return false;
+		        
 		        DefaultMutableTreeNode testNode = (DefaultMutableTreeNode) target.getParent();
 		        while(testNode!=null) {
 		        	for(DefaultMutableTreeNode node : selectedNodes)
@@ -2256,7 +2557,7 @@ public class Editor extends JFrame {
 	        		target = (DefaultMutableTreeNode) dl.getPath().getLastPathComponent();
 
 	            PapaFile targetFile = getAssociatedPapaFile(target);
-            	HashSet<DefaultMutableTreeNode> toReload;
+            	LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> toReload;
             
             
 	            if(target!=root)
@@ -2265,7 +2566,7 @@ public class Editor extends JFrame {
 	            	toReload = dropTargetGlobal(nodes);
 		        
 	            // I'm not sure why, but not invoking later will cause the JTree to incorrectly refresh leading to a crash. (still true as of v0.2)
-	            SwingUtilities.invokeLater(() -> toReload.forEach((n) -> refreshEntry(n)));
+	            SwingUtilities.invokeLater(() -> toReload.forEach((n) -> refreshEntry(n.getKey(),n.getValue())));
 	            return true;
 	        }
 	        
@@ -2319,52 +2620,59 @@ public class Editor extends JFrame {
 	        	return false;
 	        }
 
-			private HashSet<DefaultMutableTreeNode> dropTargetGlobal(DefaultMutableTreeNode[] nodes) {
+			private LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> dropTargetGlobal(DefaultMutableTreeNode[] nodes) {
 	        	int mode = optionBox("Move selected textures into their own files?", "Rip Settings", new Object[] {"Rip","Copy","Cancel"}, "Rip");
-	        	HashSet<DefaultMutableTreeNode> toReload = new HashSet<DefaultMutableTreeNode>();
+	        	LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> toReload = new LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>>();
 	            if(mode == -1 || mode == 2)
 	            	return toReload;
 	            boolean rip = mode == 0;
+	            
 	            for(DefaultMutableTreeNode node : nodes) {
-	            	DefaultMutableTreeNode refreshNode = getLowestUnlikedNode(node);
+	            	DefaultMutableTreeNode refreshNode = getLowestUnlinkedNode(node);
+	            	PapaFile associated = getAssociatedPapaFile(refreshNode);
 	            	PapaFile file = null;
 	            	Object o = node.getUserObject();
-	            	
+	            	DefaultMutableTreeNode[] results = null;
 	            	if(o instanceof PapaTexture) {
 	            		PapaTexture t = (PapaTexture)o;
 	            		file = t.getParent();
 	            		t = extract(t,rip);
-	            		placeInOwnFiles(file, t);
+	            		results = placeInOwnFiles(file, t);
 	            		
 	            	} else {
 	            		file = (PapaFile)o;
 	            		PapaTexture[] textures = extract(file,rip);
-	            		placeInOwnFiles(file, textures);
+	            		results = placeInOwnFiles(file, textures);
 	            	}
-	            	if(file != null && file.getNumTextures()==0)
-            			SwingUtilities.invokeLater(()->removeFromTree(node));
-	            	if(rip)
-	            		toReload.add(refreshNode);
+	            	if(rip) {
+		            	if(associated==null ||(! ALLOW_EMPTY_FILES && associated.getNumTextures()==0) || !associated.containsComponents(~PapaFile.STRING))
+	            			removeFromTree(refreshNode);
+	            		toReload.add(new Pair<DefaultMutableTreeNode,PapaFile>(refreshNode, associated));
+	            	}
+	            	for(DefaultMutableTreeNode n : results)
+            			toReload.add(new Pair<DefaultMutableTreeNode, PapaFile>(n, getAssociatedPapaFile(n)));
 	            }
 	            return toReload;
 			}
 
-			private HashSet<DefaultMutableTreeNode> dropTargetPapa(DefaultMutableTreeNode target, PapaFile targetFile, DefaultMutableTreeNode[] nodes) {
+			private LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> dropTargetPapa(DefaultMutableTreeNode target, PapaFile targetFile, DefaultMutableTreeNode[] nodes) {
 	        	int mode = optionBox("Link selected textures into "+getAssociatedPapaFile(target)+"?", "Link Settings", new Object[] {"Link","Embed","Cancel"}, "Link");
 	            
-	        	HashSet<DefaultMutableTreeNode> toReload = new HashSet<DefaultMutableTreeNode>();
+	        	LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> toReload = new LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>>();
 	        	
 	            if(mode == -1 || mode == 2)
 	            	return toReload;
 	            
 	            boolean link = mode == 0;
 	            if(link && PapaFile.getPlanetaryAnnihilationDirectory()==null) {
-	            	showError("Link is not available until the media directory is set.", "Cannot link", new Object[] {"Ok"}, "Ok");
-	            	return toReload;
+	            	if(showError("Link is not available until the media directory is set.", "Cannot link", new Object[] {"Ok","Set Directory"}, "Ok") == 1)
+	            		menu.changeMediaDirectory();
+	            	if(PapaFile.getPlanetaryAnnihilationDirectory()==null)
+	            		return toReload;
 	            }
-	            toReload.add(target);
 	            for(DefaultMutableTreeNode node : nodes) {
-	            	DefaultMutableTreeNode refreshNode = getLowestUnlikedNode(node);
+	            	DefaultMutableTreeNode refreshNode = getLowestUnlinkedNode(node);
+	            	PapaFile associated = getAssociatedPapaFile(refreshNode);
 	            	PapaFile file = null;
 	            	Object o = node.getUserObject();
 	            	
@@ -2379,23 +2687,25 @@ public class Editor extends JFrame {
 	            		PapaTexture[] textures = extract(file,true);
 	            		AttachToNewFile(targetFile, link, textures);
 	            	}
-	            	
-	            	if(file !=null && file.getNumTextures()==0)
-            			removeFromTree(node);
-	            	toReload.add(refreshNode);
+	            	if(associated== null || (! ALLOW_EMPTY_FILES && associated.getNumTextures()==0) || !associated.containsComponents(~PapaFile.STRING))
+            			removeFromTree(refreshNode);
+            		toReload.add(new Pair<DefaultMutableTreeNode,PapaFile>(refreshNode, associated));
 	            }
+	            toReload.add(new Pair<DefaultMutableTreeNode,PapaFile>(target, targetFile));
 	            return toReload;
 	            
 			}
 			
-			private void placeInOwnFiles(PapaFile source, PapaTexture... textures) {
+			private DefaultMutableTreeNode[] placeInOwnFiles(PapaFile source, PapaTexture... textures) {
+				ArrayList<DefaultMutableTreeNode> nodes = new ArrayList<DefaultMutableTreeNode>();
 	        	for(PapaTexture t : textures) {
 	        		if(t==null)
 	        			continue;
         			PapaFile p = source.getEmptyCopy();
         			t.attach(p);
-        			addToTreeHelper(p);
-        		}
+        			nodes.add(addToTree(p, false));
+	        	}
+	        	return nodes.toArray(new DefaultMutableTreeNode[nodes.size()]);
 	        }
 	        
 	        private PapaTexture[] extract(PapaFile p, boolean rip) {
@@ -2426,7 +2736,11 @@ public class Editor extends JFrame {
 	        		target = target.getLinkedTexture();
 	        	}
 	        	if(rip) {
-	        		t.detach();
+	        		target.detach();
+	        		if(t!=target) { // overwrite the linked texture's name if it was not the initial target of the operation
+	        			t.detach();
+		        		target.setName(t.getName());
+	        		}
 	        		return target;
 	        	}
 	        	return target.duplicate();
@@ -2479,7 +2793,7 @@ public class Editor extends JFrame {
 	private class ImagePanel extends JPanel { //TODO: Sprite sheet support (enter number of columns, rows, and images. animate button
 		private static final long serialVersionUID = 341369068060762310L;
 		
-		private boolean ignoreAlpha,luminance, tile, mouseInBounds, mouseHeld;
+		private boolean ignoreAlpha,luminance, tile, mouseInBounds, mouseHeld, showDXT;
 		private int width, height, index, mouseX, mouseY;
 		private PapaTexture image;
 		private double scale=1;
@@ -2747,6 +3061,11 @@ public class Editor extends JFrame {
 			repaint();
 		}
 		
+		public void showDXT(boolean selected) {
+			this.showDXT = selected;
+			repaint();
+		}
+		
 		public void setTile(boolean b) {
 			this.tile = b;
 			updateScrollBars();
@@ -2860,8 +3179,53 @@ public class Editor extends JFrame {
 				g2d.drawImage(draw, 0, image.getHeight(index), null);
 				g2d.drawImage(draw, image.getWidth(index), image.getHeight(index), null);
 			}
+			
+			if(showDXT)
+				drawDXTZones((Graphics2D)g.create());
 		}
 		
+		private void drawDXTZones(Graphics2D g) {
+			g.setColor(new Color(0.1f,0.1f,0.1f));
+			g.setXORMode(new Color(1f,1f,1f));
+			if(scale<1)
+				return;
+			float spacing = (float) (4 * scale);
+			
+			int horizontal = (int) (image.getWidth(index) * scale);
+			int vertical = (int) (image.getHeight(index) * scale);
+			
+			int xOrig = (int) (valueToPixels(Editor.this.horizontal) * scale); // the origin of the image, corrected for scale
+			int yOrig = (int) (valueToPixels(Editor.this.vertical) * scale);
+			
+			int canvasWidth = getWidth();
+			int canvasHeight = getHeight();
+			// converting between coordinate spaces is hard.
+			drawDXTZone(g, (int)(-xOrig % spacing),  (int) (-yOrig % spacing), Math.min(horizontal - xOrig,canvasWidth), Math.min(vertical - yOrig,canvasHeight), spacing);
+			if(tile) {
+				drawDXTZone(g,	Math.max((int)((horizontal - xOrig) % spacing), horizontal - xOrig),(int) (-yOrig % spacing),
+								Math.min(2 * horizontal - xOrig,canvasWidth), Math.min(vertical - yOrig,canvasHeight), spacing);
+				drawDXTZone(g,	(int)(-xOrig % spacing), Math.max((int)((vertical - yOrig) % spacing), vertical - yOrig),
+								Math.min(horizontal - xOrig,canvasWidth), Math.min(2 * vertical - yOrig,canvasHeight), spacing);
+				drawDXTZone(g,	Math.max((int)((horizontal - xOrig) % spacing), horizontal - xOrig), Math.max((int)((vertical - yOrig) % spacing), vertical - yOrig),
+								Math.min(2 * horizontal - xOrig,canvasWidth), Math.min(2 * vertical - yOrig,canvasHeight), spacing);
+			}
+			
+		}
+		
+		private void drawDXTZone(Graphics2D g2d,int startX, int startY, int endX, int endY, float change) {
+			if(endY <= startY)
+				return;
+			
+			for(float x = startX;x<endX;x+=change) {
+				int xx = (int)x;
+				g2d.drawLine(xx, startY, xx, endY);
+			}
+			for(float y =startY;y<endY;y+=change) {
+				int yy = (int) y;
+				g2d.drawLine(startX, yy, endX, yy);
+			}
+		}
+
 		private void drawCheckerboardGrid(Graphics2D g) {
 			int drawWidth = Math.min(getTotalDrawWidth(),getWidth());
 			int drawHeight = Math.min(getTotalDrawHeight(),getHeight());

@@ -266,17 +266,17 @@ public class PapaOptions extends JDialog  {
 
 		
 		private int methodToIndex(CompressionMethod method) {
-			if(method.equals(CompressionMethod.CLUSTER_FIT))
-				return 0;
 			if(method.equals(CompressionMethod.RANGE_FIT))
+				return 0;
+			if(method.equals(CompressionMethod.CLUSTER_FIT))
 				return 1;
 			return 1;
 		}
 		
 		private CompressionMethod valueToMethod(String value) {
-			if(value.equals("Cluster"))
+			if(value.equals("Quality"))
 				return CompressionMethod.CLUSTER_FIT;
-			if(value.equals("Range"))
+			if(value.equals("Fast"))
 				return CompressionMethod.RANGE_FIT;
 			return CompressionMethod.CLUSTER_FIT;
 		}
@@ -294,7 +294,7 @@ public class PapaOptions extends JDialog  {
 			
 			final int leftOffset = 85;
 			
-			final String[] formats = new String[] {"DXT1","DXT3","DXT5","R8G8B8A8","R8G8B8X8","B8G8R8A8","R8"};
+			final String[] formats = new String[] {"DXT1","DXT5","R8G8B8A8","R8G8B8X8","B8G8R8A8","R8"}; // DXT3
 			
 			formatSelector = new JComboBox<String>();
 			for(String s : formats)
@@ -316,8 +316,8 @@ public class PapaOptions extends JDialog  {
 			});
 			
 			dxtCompressionMode = new JComboBox<String>();
-			dxtCompressionMode.addItem("Cluster");
-			dxtCompressionMode.addItem("Range");
+			dxtCompressionMode.addItem("Fast");
+			dxtCompressionMode.addItem("Quality");
 			layout.putConstraint(SpringLayout.NORTH, dxtCompressionMode, 5, SpringLayout.SOUTH, formatSelector);
 			layout.putConstraint(SpringLayout.WEST, dxtCompressionMode, leftOffset, SpringLayout.WEST, this);
 			layout.putConstraint(SpringLayout.SOUTH, dxtCompressionMode, 25, SpringLayout.SOUTH, formatSelector);
