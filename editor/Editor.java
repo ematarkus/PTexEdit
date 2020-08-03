@@ -2292,8 +2292,9 @@ public class Editor extends JFrame {
 		public DefaultMutableTreeNode addToTreeOrSelect(PapaFile p, boolean reload) {
 			DefaultMutableTreeNode result = getTopLevelNodeFromPapaFile(p);
 			if(result!=null) {
-				fileTree.setSelectionPath(new TreePath(result.getPath()));
 				requestFocus();
+				fileTree.expandPath(new TreePath(result.getPath()));
+				refreshEntry(result); // refresh to account for Link
 				return result;
 			}
 			return addToTree(p, reload);
