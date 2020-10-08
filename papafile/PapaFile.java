@@ -58,7 +58,8 @@ public class PapaFile extends PapaComponent{
 	@SuppressWarnings("unchecked")
 	private ArrayList<? extends PapaComponent>[] components = (ArrayList<? extends PapaComponent>[]) new ArrayList<?>[] {strings,textures,vBuffers,iBuffers, materials, 
 																														meshes,skeletons, models, animations};
-	private static final String[] COMPONENT_NAMES = new String[] {"Strings","Textures","Vertex Buffers","Index Buffers","Materials","Meshes", "Skeletons", "Models", "Animations"};
+	private static final String[] COMPONENT_NAMES = new String[] {	"Strings","Textures","Vertex Buffers","Index Buffers","Materials",
+																	"Meshes", "Skeletons", "Models", "Animations"};
 	private static final int[] buildOrder = new int[] {7,5,4,1,2,3,6,8,0};
 	
 	public static final int NONE =		0b000000000;
@@ -370,7 +371,7 @@ public class PapaFile extends PapaComponent{
 		recalculateFileSize();
 	}
 	
-	void removeTexture(PapaTexture tex) {
+	/*void removeTexture(PapaTexture tex) {
 		PapaFile linkedFile = null;
 		if(tex.isLinked() && tex.linkValid() && getReferencesToLinkedFile(tex.getLinkedTexture().getParent()) == 1) {
 			linkedFile = tex.getLinkedTexture().getParent();
@@ -389,7 +390,12 @@ public class PapaFile extends PapaComponent{
 			linkedFile.detach();
 		
 		recalculateFileSize();
+	}*/
+	
+	void removeTexture(PapaTexture tex) {
+		removeComponent(textures, tex, "texture");
 	}
+	
 	
 	private int indexOfReference(ArrayList<? extends PapaComponent> list, PapaComponent comp) {
 		for(int i =0;i<list.size();i++)
@@ -694,22 +700,28 @@ public class PapaFile extends PapaComponent{
 			
 			fileSize = in.limit();
 			
-			if(fileSize < 4)
-				throw new IOException("File is empty"); // prevent null error
+			if(fileSize == 0)
+				throw new IOException("File is empty");
 			readHeader(in);
 			
-			if( ! papaFileContains(flags))
-				return;
-			
-			readStrings(in);
-			readTextures(in);
-			readVBuffers(in);
-			readIBuffers(in);
-			readMaterials(in);
-			readMeshes(in);
-			readSkeletons(in);
-			readModels(in);
-			readAnimations(in);
+			if((STRING & flags) == STRING)
+				readStrings(in);
+			if((TEXTURE & flags) == TEXTURE)
+				readTextures(in);
+			if((VBUF & flags) == VBUF)
+				readVBuffers(in);
+			if((IBUF & flags) == IBUF)
+				readIBuffers(in);
+			if((MATERIAL & flags) == MATERIAL)
+				readMaterials(in);
+			if((MESH & flags) == MESH)
+				readMeshes(in);
+			if((SKELETON & flags) == SKELETON)
+				readSkeletons(in);
+			if((MODEL & flags) == MODEL)
+				readModels(in);
+			if((ANIMATION & flags) == ANIMATION)
+				readAnimations(in);
 		} catch (IOException e) {
 			throw e;
 		} catch (BufferUnderflowException b) {
@@ -735,10 +747,6 @@ public class PapaFile extends PapaComponent{
 				return bos.toByteArray();
 			bos.write(buf, 0, dataSize);
 		}
-	}
-
-	private boolean papaFileContains(int flags) {
-		return true; //TODO
 	}
 	
 	private void readHeader(ByteBuffer in) throws IOException {

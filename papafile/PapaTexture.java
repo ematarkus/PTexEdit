@@ -41,7 +41,7 @@ import papafile.PapaFile.BuildNotification;
  */
 public class PapaTexture extends PapaComponent{
 	// papadump suggests the first 3 formats have a different name, but is incorrect.
-	// despite listing all these textures, PA will only actually support: R8G8B8A8, R8G8B8X8, B8G8R8A8, DXT1, DXT3 (partially), DXT5, and R8
+	// despite listing all these textures, PA will only actually support: R8G8B8A8, R8G8B8X8, B8G8R8A8, DXT1, DXT5, and R8
 	private static final String[] formats = {	"R8G8B8A8", "R8G8B8X8", "B8G8R8A8", "DXT1", "DXT3", "DXT5", "R32F", "RG32F", "RGBA32F", 
 												"R16F", "RG16F", "RGBA16F", "R8", "R8G8",  "D0", "D16", "D24", "D24S8", "D32", "R8I", "R8UI", 
 												"R16I", "R16UI", "RG8I", "RG8UI", "RG16I", "RG16UI", "R32I", "R32UI", "Shadow16", "Shadow24", "Shadow32"};
@@ -136,11 +136,11 @@ public class PapaTexture extends PapaComponent{
 		this.name = name;
 	}
 	
-	public void adjustLinkedTextureName(String newName) {
+	/*public void adjustLinkedTextureName(String newName) { TODO: remove if not necessary (might've become obsolete)
 		checkLinked(true);
 		parent.updateLinkedFile(getLinkedTexture().getParent(), newName);
 		this.name = newName;
-	}
+	}*/
 	
 	public byte getMips() {
 		checkLinked(false);
@@ -199,7 +199,7 @@ public class PapaTexture extends PapaComponent{
 		PapaFile p = parent.getLinkedFile(name);
 		linkedFile = p;
 		if(linkedFile.getNumTextures()!=1)
-			throw new UnsupportedOperationException("Linked PapaFile contains more than one texture. This is not unknown behaviour!");
+			throw new IllegalStateException("Linked PapaFile "+linkedFile+" does not contain exactly 1 texture. This is unknown behaviour!");
 		return linkedFile.getTexture(0);
 	}
 	
@@ -233,7 +233,8 @@ public class PapaTexture extends PapaComponent{
 		this.parent=p;
 		this.isLinked = true;
 		this.name = linkedFilePath;
-		getLinkedTexture(); // calculate linked file variable
+		if(p!=null)
+			getLinkedTexture(); // calculate linked file variable
 	}
 	
 	public PapaTexture(String name, byte format, byte mips, boolean srgb, short width, short height, byte[] data, PapaFile p) throws IOException {
@@ -379,7 +380,7 @@ public class PapaTexture extends PapaComponent{
 			case "DXT1":          
 				return new DXT1();           
 			case "DXT3":          
-				return new DXT3();       
+				return new DXT3(); // unsupported by PA  
 			case "DXT5":          
 				return new DXT5(); 
 			case "R8":
@@ -1078,6 +1079,13 @@ public class PapaTexture extends PapaComponent{
 		public static final int LINK_TYPE_REFERENCE = 1;
 		public static final int LINK_TYPE_OVERWRITE = 2; //TODO: unsupported!
 		
+		public static final String DXT1 = "DXT1";
+		public static final String DXT5 = "DXT5";
+		public static final String R8G8B8A8 = "R8G8B8A8";
+		public static final String R8G8B8X8 = "R8G8B8X8";
+		public static final String B8G8R8A8 = "B8G8R8A8";
+		public static final String R8 = "R8"; 
+		
 		private String format;
 		private CompressionMethod method;
 		private boolean generateMipmaps;
@@ -1297,9 +1305,9 @@ public class PapaTexture extends PapaComponent{
 	@Override
 	protected void setParent(PapaFile newParent) {
 		parent = newParent;
-		if(isLinked) {
-			adjustLinkedTextureName(name); // refresh parent
-		}
+		/*if(isLinked) {
+			adjustLinkedTextureName(name); // refresh parent TODO: remove if obsolete
+		}*/
 		newParent.addTexture(this);
 	}
 
