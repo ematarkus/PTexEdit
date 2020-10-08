@@ -37,8 +37,8 @@ public class PapaOptions extends JDialog  {
 	private JPanel contentPane;
 	private JButton okButton;
 	private JCheckBox repromptCheckBox;
-	private final int width = 550;
-	private final int height = 310;
+	private final int width = 555;
+	private final int height = 320;
 	private TextureSettings internalSettings;
 	private ImmutableTextureSettings settings;
 	private GeneralSection generalSection;

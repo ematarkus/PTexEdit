@@ -29,6 +29,7 @@ import javax.swing.event.*;
 import java.awt.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
+import java.awt.font.TextAttribute;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
@@ -57,7 +58,8 @@ public class Editor extends JFrame {
 	private static final String APPLICATION_NAME = "PTexEdit";
 	private static final String VERSION_STRING = "0.3";
 	private static final String BUILD_DATE = "August 1, 2020";
-	private static final File settingsFile = new File(System.getProperty("user.home")+File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
+	private static final File settingsFile = new File(System.getProperty("user.home") + 
+						File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
 	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
 	private static final BufferedImage icon = loadImageFromResources("icon.png");
@@ -71,6 +73,7 @@ public class Editor extends JFrame {
 	private static final ImageIcon imgPapaFileUnsaved = loadIconFromResources("papafileUnsaved.png");
 	private static final ImageIcon plusIcon = loadIconFromResources("plus.png");
 	private static final ImageIcon minusIcon = loadIconFromResources("minus.png");
+	private static final ImageIcon upArrowIcon = loadIconFromResources("upArrow.png");
 	private static final Properties prop = new Properties();
 	private static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
@@ -78,14 +81,15 @@ public class Editor extends JFrame {
 	
 	private PapaFile activeFile = null;
 	private PapaTexture activeTexture = null;
+	private Set<PapaComponent> dependencies = Collections.newSetFromMap(new IdentityHashMap<>()), dependents = Collections.newSetFromMap(new IdentityHashMap<>());
 	
 	private ImagePanel imagePanel;
 	private ConfigPanelTop configSection1;
 	private ConfigPanelBottom configSection2;
 	private ConfigPanelSelector configSelector;
 	private RibbonPanel ribbonPanel;
-	
-	private ClipboardImage clipboardImage;
+	 
+	private ClipboardListener clipboardOwner;
 	
 	private JPanel config, canvas;
 	private JSplitPane mainPanel;
@@ -100,6 +104,7 @@ public class Editor extends JFrame {
 	
 	public static void main(String[] args) {
 		applyPlatformChanges();
+		
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				APPLICATION_WINDOW = new Editor();
@@ -318,7 +323,7 @@ public class Editor extends JFrame {
 		private boolean ignoreReprompt = false;
 		private float subProgress = 0f;
 		private float totalSubFiles = 0f;
-		private AtomicInteger currentFileCount = new AtomicInteger();
+		private AtomicInteger processedFiles = new AtomicInteger();
 		private boolean optimize = false;
 		private int optimizeCounter = 0, optimizeFactor=0;
 		
@@ -334,8 +339,8 @@ public class Editor extends JFrame {
 		@Override
 		protected Void doInBackground() throws Exception {
 			long time = System.nanoTime();
-			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(true));
-			
+			SwingUtilities.invokeAndWait(() -> APPLICATION_WINDOW.setReadingFiles(true));
+			processedFiles.set(0);
 			for(int i =0;i<files.length;i++) {
 				setProgress((int)(100f/(float)files.length * i));
 				
@@ -357,7 +362,12 @@ public class Editor extends JFrame {
 				info.setTextureSettings(settings);
 				info.setActivityListener(new ActivityListener() {
 					@Override
+					public void onFoundAcceptableFile(File f, int currentTotal) {
+						ribbonPanel.setNumberOfFoundFiles(currentTotal);
+					}
+					@Override
 					public void onGotTotalFiles(int totalFiles) {
+						ribbonPanel.startImport(totalFiles);
 						totalSubFiles = totalFiles;
 						if(totalSubFiles>=50) {
 							optimize = true; // reloading the tree is expensive
@@ -366,7 +376,9 @@ public class Editor extends JFrame {
 					}
 					@Override
 					public void onEndProcessFile(File f, String threadName, boolean success) {
-						subProgress = (float)currentFileCount.getAndAdd(1) / totalSubFiles;
+						int count = processedFiles.getAndAdd(1);
+						subProgress = (float) count/ totalSubFiles;
+						ribbonPanel.setNumberProcessedFiles(count);
 					}
 					@Override
 					public void onRejectFile(File f, String reason) {}
@@ -376,8 +388,12 @@ public class Editor extends JFrame {
 					}
 				});
 				boolean wait = importInterface == FileHandler.IMAGE_INTERFACE || i == files.length-1;
-				
+				ribbonPanel.setNumberOfFoundFiles(0);
 				FileHandler.readFiles(files[i], importInterface, info, true, wait);
+				// TODO this is a bit of a band aid solution. Currently the file handler has no information on the progress of an import.
+				// FileHandler must encapsulate the import into a class for better info. (this will also allow for >1 import at a time)
+				if(wait)
+					ribbonPanel.endImport();
 			}
 			
 			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(false));
@@ -506,6 +522,7 @@ public class Editor extends JFrame {
 		menu.applySettings(activeFile, index, activeTexture ,changed);
 		configSection1.applySettings(activeFile, index, activeTexture ,changed);
 		configSection2.applySettings(activeFile, index, activeTexture ,changed);
+		configSelector.applySettings(activeFile, index, activeTexture ,changed);
 	}
 	
 	/*private void refreshActiveFile() {
@@ -521,10 +538,14 @@ public class Editor extends JFrame {
 	private void unloadFileFromConfig() {
 		activeFile = null;
 		activeTexture = null;
+		dependents.clear();
+		dependencies.clear();
 		menu.unload();
 		configSection1.unload();
 		configSection2.unload();
+		configSelector.unload();
 		imagePanel.unload();
+		configSelector.fileTree.repaint();
 	}
 	
 	private PapaFile[] getTargetablePapaFiles() {
@@ -644,7 +665,7 @@ public class Editor extends JFrame {
 		configLayout.putConstraint(SpringLayout.EAST, configSelector, -5, SpringLayout.EAST, config);
 		config.add(configSelector);
 		
-		clipboardImage = new ClipboardImage();
+		clipboardOwner = new ClipboardListener();
 	}
 	
 	private class MenuBar extends JMenuBar {
@@ -654,7 +675,8 @@ public class Editor extends JFrame {
 		private ButtonGroup mViewChannelItems;
 		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mViewDXT, mOptionsShowRoot, mOptionsAllowEmpty, mOptionsSuppressWarnings;
 		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
-		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mToolsReloadLinked, mEditCopy, mEditPaste;
+		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mToolsReloadLinked,
+							mEditCopy, mEditPaste;
 		private boolean clipboardHasImage, readingFiles;
 		
 		public int getSelectedRadioButton() { // I hate ButtonGroup.
@@ -688,7 +710,7 @@ public class Editor extends JFrame {
 
 		public void applySettings(PapaFile activeFile, int index, PapaTexture tex, boolean same) {
 			boolean hasTextures = !(activeFile.getNumTextures() == 0 || tex == null);
-			boolean linkValid = (!tex.isLinked() || tex.linkValid());
+			boolean linkValid = hasTextures && (!tex.isLinked() || tex.linkValid());
 			mFileSave.setEnabled(true);
 			mFileSaveAs.setEnabled(true);
 			mToolsShowInFileBrowser.setEnabled(activeFile.getFile()!=null && activeFile.getFile().exists());
@@ -1088,7 +1110,7 @@ public class Editor extends JFrame {
 			mOptions.setMnemonic('o');
 			add(mOptions);
 			
-			JMenuItem mOptionsSetDirectory = new JMenuItem("Set Media Directory");
+			JMenuItem mOptionsSetDirectory = new JMenuItem("Set Media Directory...");
 			mOptionsSetDirectory.setToolTipText("This is the base directory that will be used when finding linked textures.");
 			mOptionsSetDirectory.setMnemonic('s');
 			mOptions.add(mOptionsSetDirectory);
@@ -1159,7 +1181,7 @@ public class Editor extends JFrame {
 		private void transferToClipboard(BufferedImage image) {
 			TransferableImage t = new TransferableImage(image);
 			try {
-				clipboard.setContents(t, clipboardImage);
+				clipboard.setContents(t, clipboardOwner);
 			} catch (IllegalStateException e) {
 				showError("Failed to copy image to clipboad. Clipboard is unavailable.", "Copy error", new Object[] {"Ok"}, "Ok");
 			}
@@ -1199,7 +1221,7 @@ public class Editor extends JFrame {
 		}
 	}
 	
-	private class ClipboardImage implements ClipboardOwner {
+	private class ClipboardListener implements ClipboardOwner {
 
 		@Override
 		public void lostOwnership(Clipboard clipboard, Transferable contents) {
@@ -1216,7 +1238,9 @@ public class Editor extends JFrame {
 		private double zoomScale=1;
 		
 		private JSlider zoomSlider;
-		private JLabel zoomLabel, locationLabel,colourLabelRed,colourLabelGreen,colourLabelBlue,colourLabelAlpha, colourLabel;
+		private JLabel zoomLabel, locationLabel,colourLabelRed,colourLabelGreen,colourLabelBlue,colourLabelAlpha, colourLabel, importLabel;
+		
+		private int importFileCount=0;
 		
 		private void updateZoomFromSlider() {
 			zoomScale = Math.pow(2, (zoomSlider.getValue()-SLIDER_TICKS/2));
@@ -1240,15 +1264,19 @@ public class Editor extends JFrame {
 				locationLabel.setText(imagePanel.getMouseX()+", "+imagePanel.getMouseY());
 				if(imagePanel.isMouseHeld()) {
 					Color c = imagePanel.getColourUnderMouse();
-					colourLabelRed.setText("R="+c.getRed());
-					colourLabelGreen.setText("G="+c.getGreen());
-					colourLabelBlue.setText("B="+c.getBlue());
-					colourLabelAlpha.setText("A="+c.getAlpha());
-					colourLabel.setBackground(new Color(c.getRGB(),false));
+					setColourLabel(c);
 				}
 			} else
 				locationLabel.setText("");
 			
+		}
+		
+		private void setColourLabel(Color c) {
+			colourLabelRed.setText("R="+c.getRed());
+			colourLabelGreen.setText("G="+c.getGreen());
+			colourLabelBlue.setText("B="+c.getBlue());
+			colourLabelAlpha.setText("A="+c.getAlpha());
+			colourLabel.setBackground(new Color(c.getRGB(),false));
 		}
 		
 		private class ButtonMouseListener implements MouseListener {
@@ -1269,6 +1297,26 @@ public class Editor extends JFrame {
 			}
 			
 		};
+		
+		public void setNumberOfFoundFiles(int number) {
+			importFileCount=number;
+			importLabel.setText("Scanning... "+number+" files found");
+		}
+		
+		public void startImport(int number) {
+			importFileCount = number;
+			setNumberProcessedFiles(0);
+		}
+		
+		public void setNumberProcessedFiles(int number) {
+			if(number > importFileCount)
+				number = 0; // parallel processing fix (next import starts before the last finished on multi import)
+			importLabel.setText("Processed: "+String.format("%s", number)+" of "+String.format("%s", importFileCount));
+		}
+		
+		public void endImport() {
+			importLabel.setText("");
+		}
 
 		public RibbonPanel() {
 			setBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)));
@@ -1369,6 +1417,29 @@ public class Editor extends JFrame {
 			sep3.setOrientation(JSlider.VERTICAL);
 			add(sep3);
 			
+			final JPopupMenu popupColour = new JPopupMenu();
+	        JMenuItem item = new JMenuItem("Copy as Hex");
+	        item.setMnemonic(KeyEvent.VK_H);
+	        item.addActionListener((ActionEvent e)-> {
+	        	Color c = colourLabel.getBackground();
+	        	int i = (c.getRed()<<16) | (c.getGreen()<<8) | c.getBlue();
+	        	String hex = Integer.toHexString(i);
+	        	hex = "000000".substring(hex.length()) + hex;
+	        	StringSelection s = new StringSelection(hex);
+	        	clipboard.setContents(s, clipboardOwner);
+	        });
+	        popupColour.add(item);
+	        
+	        item = new JMenuItem("Copy as RGB");
+	        item.setMnemonic(KeyEvent.VK_R);
+	        item.addActionListener((ActionEvent e)-> {
+	        	Color c = colourLabel.getBackground();
+	        	String rgb = c.getRed()+" "+c.getGreen()+" "+c.getBlue();
+	        	StringSelection s = new StringSelection(rgb);
+	        	clipboard.setContents(s, clipboardOwner);
+	        });
+	        popupColour.add(item);
+			
 			colourLabel = new JLabel();
 			layout.putConstraint(SpringLayout.NORTH, colourLabel, 0, SpringLayout.NORTH, this);
 			layout.putConstraint(SpringLayout.EAST, colourLabel, 0, SpringLayout.WEST, sep3);
@@ -1377,6 +1448,33 @@ public class Editor extends JFrame {
 			colourLabel.setOpaque(true);
 			//colourLabel.setBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)));;
 			add(colourLabel);
+			
+			colourLabel.addMouseListener(new MouseListener() {
+				boolean armed = false;
+				@Override
+				public void mouseReleased(MouseEvent e) {
+					if(armed) {
+						Point m = colourLabel.getMousePosition();
+						popupColour.show(colourLabel, m.x ,m.y);
+					}
+				}
+				
+				@Override
+				public void mousePressed(MouseEvent e) {
+					armed = true;
+				}
+				
+				@Override
+				public void mouseExited(MouseEvent e) {
+					armed = false;
+				}
+				
+				@Override
+				public void mouseEntered(MouseEvent e) {}
+				
+				@Override
+				public void mouseClicked(MouseEvent e) {}
+			});
 			
 			// i hated all the monospaced fonts so i'm just making 4 JLabels instead.
 			
@@ -1416,7 +1514,14 @@ public class Editor extends JFrame {
 			sep4.setOrientation(JSlider.VERTICAL);
 			add(sep4);
 			
+			importLabel = new JLabel("");
+			layout.putConstraint(SpringLayout.NORTH, importLabel, 0, SpringLayout.NORTH, this);
+			layout.putConstraint(SpringLayout.EAST, importLabel, -5, SpringLayout.WEST, sep4);
+			layout.putConstraint(SpringLayout.SOUTH, importLabel, 0, SpringLayout.SOUTH, this);
+			layout.putConstraint(SpringLayout.WEST, importLabel, 5, SpringLayout.WEST, this);
+			add(importLabel);
 			
+			setColourLabel(Color.black);
 		}
 	}
 	
@@ -1530,6 +1635,7 @@ public class Editor extends JFrame {
 				imageName.setBorder(defaultButtonBorder);
 			}
 			configSelector.selectedNodeChanged();
+			configSelector.fileTree.repaint();
 		}
 		
 		private void refreshActiveFileLinks() {
@@ -1935,6 +2041,7 @@ public class Editor extends JFrame {
 		private final DefaultTreeModel treeModel;
 		private boolean alwaysShowRoot;
 		private HashSet<TreePath> expandedPaths = new HashSet<TreePath>();
+		private JMenuItem removeSelected, addLinked;
 		
 		public DefaultMutableTreeNode refreshEntry(DefaultMutableTreeNode node) {
 			PapaFile p = getAssociatedPapaFile(node);
@@ -1943,10 +2050,21 @@ public class Editor extends JFrame {
 			return refreshEntry(node, p);
 		}
 		
+		public void unload() {
+			removeSelected.setEnabled(false);
+			addLinked.setEnabled(false);
+			
+		}
+
+		private void applySettings(PapaFile pf, int image, PapaTexture tex, boolean changed) {
+			removeSelected.setEnabled(true);
+			addLinked.setEnabled(!pf.isLinkedFile());
+		}
+
 		public DefaultMutableTreeNode refreshEntry(DefaultMutableTreeNode node, PapaFile p) {
 			DefaultMutableTreeNode parent = (DefaultMutableTreeNode) node.getParent();
 			if(parent == null)
-				parent = root;
+				parent = root; 
 			if(p==null)
 				return node;
 			
@@ -2191,13 +2309,26 @@ public class Editor extends JFrame {
 		private DefaultTreeCellRenderer papaTreeRenderer = new DefaultTreeCellRenderer() {
 			private static final long serialVersionUID = -3988740979113661683L;
 			private final Font font = this.getFont().deriveFont(Font.PLAIN);
+			private final Font underline;
+			
+			{
+				Map<TextAttribute, Object> map =new Hashtable<TextAttribute, Object>();
+				map.put(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_LOW_DOTTED);
+				underline = font.deriveFont(map);
+			}
 			
 			@Override
 			public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
 				super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
-				this.setFont(font);
 				DefaultMutableTreeNode node = (DefaultMutableTreeNode) value;
 				Object o = node.getUserObject();
+				
+				if(dependencies.contains(o) || dependents.contains(o)) {
+					this.setFont(underline);
+				} else
+					this.setFont(font);
+				
+				
 				if(o instanceof PapaFile) {
 					PapaFile p = (PapaFile) o;
 					this.setText(p.getFileName());
@@ -2228,7 +2359,7 @@ public class Editor extends JFrame {
 				
 				ArrayList<ImageIcon> iconList = new ArrayList<ImageIcon>();
 				
-				if(!p.getFile().exists())
+				if(p.getFile() == null || !p.getFile().exists())
 					iconList.add(imgPapaFileUnsaved);
 				
 				iconList.add(imgPapafileImage);
@@ -2293,8 +2424,8 @@ public class Editor extends JFrame {
 			DefaultMutableTreeNode result = getTopLevelNodeFromPapaFile(p);
 			if(result!=null) {
 				requestFocus();
-				fileTree.expandPath(new TreePath(result.getPath()));
 				refreshEntry(result); // refresh to account for Link
+				fileTree.expandPath(new TreePath(result.getPath()));
 				return result;
 			}
 			return addToTree(p, reload);
@@ -2368,10 +2499,19 @@ public class Editor extends JFrame {
 					
 					lastSelected = (DefaultMutableTreeNode)newPath.getLastPathComponent();
 					Object o = lastSelected.getUserObject();
-					if(o instanceof PapaFile) {
+					Class<?> cl = o.getClass();
+					if(o instanceof PapaComponent) {
+						PapaComponent pc = (PapaComponent)o;
+						dependents.clear();
+						dependents.addAll(Arrays.asList(pc.getDependents()));
+						dependencies.clear();
+						dependencies.addAll(Arrays.asList(pc.getDependencies()));
+						configSelector.fileTree.repaint();
+					}
+					if(cl == PapaFile.class) {
 						PapaFile selected = (PapaFile) o;
 						setActiveFile(selected);
-					} else if(o instanceof PapaTexture) {
+					} else if(cl == PapaTexture.class) {
 						PapaTexture selected = (PapaTexture) o;
 						setActiveTexture(selected);
 					} else {
@@ -2407,13 +2547,104 @@ public class Editor extends JFrame {
 			layout.putConstraint(SpringLayout.SOUTH, treeScrollPane, -25, SpringLayout.SOUTH, this);
 			add(treeScrollPane);
 			
+			final JPopupMenu popup = new JPopupMenu();
+	        removeSelected = new JMenuItem("Remove Selected");
+	        removeSelected.setMnemonic(KeyEvent.VK_R);
+	        removeSelected.addActionListener((ActionEvent e)-> {
+	        	HashSet<Pair<DefaultMutableTreeNode,PapaFile>> nodes = new HashSet<>();
+	        	TreePath[] selected = fileTree.getSelectionPaths();
+				fileTree.clearSelection();
+				if(selected==null)
+					return;
+				unloadFileFromConfig();
+				for(TreePath t : selected) {
+					DefaultMutableTreeNode node = (DefaultMutableTreeNode)t.getLastPathComponent();
+					Object o = node.getUserObject();
+					
+					DefaultMutableTreeNode refreshNode = getLowestUnlinkedNode((DefaultMutableTreeNode) t.getLastPathComponent());
+					if(refreshNode==null) // was already removed
+						continue;
+					PapaFile p = getAssociatedPapaFile(refreshNode);
+					if(p==null)
+						continue;
+					
+					if(o.getClass()==PapaTexture.class) {
+						PapaTexture t2 = (PapaTexture)o;
+						if(t2.getParent().isLinkedFile())
+							t2.getParent().detach();
+						t2.detach();
+					}
+					if(o.getClass()==PapaFile.class) {
+						PapaFile p2 = (PapaFile)o;
+						if(p2.isLinkedFile())
+							p2.detach();
+						else
+							removeFromTreeHelper(node);
+					}
+					nodes.add(new Pair<>(refreshNode,p));
+				}
+				for(Pair<DefaultMutableTreeNode,PapaFile> p : nodes) {
+					if(p.getValue().getNumTextures()== 0 && !ALLOW_EMPTY_FILES)
+						removeFromTreeHelper(p.getKey());
+					else
+						refreshEntry(p.getKey(), p.getValue());
+				}
+				reloadAndExpand(root);
+	        });
+	        popup.add(removeSelected);
+	        removeSelected.setEnabled(false);
+	        
+	        addLinked = new JMenuItem("Add Linked Texture");
+	        addLinked.setMnemonic(KeyEvent.VK_A);
+	        addLinked.addActionListener((ActionEvent e)-> {
+	        	TreePath path = fileTree.getSelectionPath();
+	        	if(path==null)
+	        		return;
+	        	fileTree.clearSelection();
+	        	DefaultMutableTreeNode refreshNode = getLowestUnlinkedNode((DefaultMutableTreeNode) path.getLastPathComponent());
+	        	PapaFile p = getAssociatedPapaFile((DefaultMutableTreeNode) path.getLastPathComponent());
+	        	PapaTexture t = new PapaTexture("New Linked File", null);
+	        	t.attach(p);
+	        	
+	        	DefaultMutableTreeNode replaced = refreshEntry(refreshNode);
+	        	reloadAndExpand(root);
+	        	
+	        	DefaultMutableTreeNode toSelect = replaced;
+	        	@SuppressWarnings("unchecked")
+				Enumeration<DefaultMutableTreeNode> en = replaced.children();
+	        	while(en.hasMoreElements()) {
+	        		DefaultMutableTreeNode n = en.nextElement();
+	        		if(n.getUserObject()==t)
+	        			toSelect = n;
+	        	}
+	        	select(new TreePath(toSelect.getPath()));
+	        	
+	        	
+	        });
+	        popup.add(addLinked);
+	        addLinked.setEnabled(false);
+			
 			JButton unloadButton = new JButton("Unload");
 			layout.putConstraint(SpringLayout.NORTH, unloadButton, 5, SpringLayout.SOUTH, treeScrollPane);
 			layout.putConstraint(SpringLayout.WEST, unloadButton, 5, SpringLayout.WEST, this);
-			layout.putConstraint(SpringLayout.EAST, unloadButton, -5, SpringLayout.EAST, this);
+			layout.putConstraint(SpringLayout.EAST, unloadButton, -24, SpringLayout.EAST, this);
 			layout.putConstraint(SpringLayout.SOUTH, unloadButton, -5, SpringLayout.SOUTH, this);
 			add(unloadButton);
-			unloadButton.addActionListener((ActionEvent e) -> {
+			
+			JButton popupButton = new JButton(upArrowIcon);
+			popupButton.setMargin(new Insets(0, 0, 0, 0));
+			layout.putConstraint(SpringLayout.NORTH, popupButton, 5, SpringLayout.SOUTH, treeScrollPane);
+			layout.putConstraint(SpringLayout.WEST, popupButton, 5, SpringLayout.EAST, unloadButton);
+			layout.putConstraint(SpringLayout.EAST, popupButton, -5, SpringLayout.EAST, this);
+			layout.putConstraint(SpringLayout.SOUTH, popupButton, -5, SpringLayout.SOUTH, this);
+			add(popupButton);
+			popupButton.setFocusPainted(false);
+			
+	        popupButton.addActionListener((ActionEvent e) -> {
+	        	popup.show(popupButton, 0, (int)-popup.getPreferredSize().getHeight());
+			});
+	        
+	        unloadButton.addActionListener((ActionEvent e) -> {
 				TreePath[] selected = fileTree.getSelectionPaths();
 				fileTree.clearSelection();
 				if(selected==null)
@@ -2637,8 +2868,8 @@ public class Editor extends JFrame {
 	            	if(o instanceof PapaTexture) {
 	            		PapaTexture t = (PapaTexture)o;
 	            		file = t.getParent();
-	            		t = extract(t,rip);
-	            		results = placeInOwnFiles(file, t);
+	            		PapaTexture t2 = extract(t,rip);
+	            		results = placeInOwnFiles(file, t2);
 	            		
 	            	} else {
 	            		file = (PapaFile)o;
@@ -2646,7 +2877,7 @@ public class Editor extends JFrame {
 	            		results = placeInOwnFiles(file, textures);
 	            	}
 	            	if(rip) {
-		            	if(associated==null ||(! ALLOW_EMPTY_FILES && associated.getNumTextures()==0) || !associated.containsComponents(~PapaFile.STRING))
+		            	if(associated==null || (! ALLOW_EMPTY_FILES && associated.getNumTextures()==0) || !associated.containsComponents(~PapaFile.STRING))
 	            			removeFromTree(refreshNode);
 	            		toReload.add(new Pair<DefaultMutableTreeNode,PapaFile>(refreshNode, associated));
 	            	}
@@ -2656,7 +2887,8 @@ public class Editor extends JFrame {
 	            return toReload;
 			}
 
-			private LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> dropTargetPapa(DefaultMutableTreeNode target, PapaFile targetFile, DefaultMutableTreeNode[] nodes) {
+			private LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> 
+					dropTargetPapa(DefaultMutableTreeNode target, PapaFile targetFile, DefaultMutableTreeNode[] nodes) {
 	        	int mode = optionBox("Link selected textures into "+getAssociatedPapaFile(target)+"?", "Link Settings", new Object[] {"Link","Embed","Cancel"}, "Link");
 	            
 	        	LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>> toReload = new LinkedHashSet<Pair<DefaultMutableTreeNode,PapaFile>>();
@@ -2737,11 +2969,14 @@ public class Editor extends JFrame {
 	        		target = target.getLinkedTexture();
 	        	}
 	        	if(rip) {
-	        		target.detach();
 	        		if(t!=target) { // overwrite the linked texture's name if it was not the initial target of the operation
 	        			t.detach();
 		        		target.setName(t.getName());
 	        		}
+	        		PapaFile parent = target.getParent();
+	        		if(parent!=null && parent.isLinkedFile())
+	        			parent.detach();
+	        		target.detach();
 	        		return target;
 	        	}
 	        	return target.duplicate();
@@ -2751,8 +2986,11 @@ public class Editor extends JFrame {
 				for(PapaTexture t : textures) {
 					if(t==null)
 						continue;
-        			if(link)
+        			if(link) {
+        				if(!t.getName().startsWith("/"))
+        					t.setName("/"+t.getName()); // add implicit /
         				file.generateLinkedTexture(t);
+        			}
         			else
         				t.attach(file);
 				}
@@ -2965,8 +3203,11 @@ public class Editor extends JFrame {
 		}
 		
 		private void updateScrollBars(double lastX, double lastY) {
-			if(!isImageLoaded())
+			if(!isImageLoaded()) {
+				horizontal.setEnabled(false);
+				vertical.setEnabled(false);
 				return;
+			}
 			int imageWidth = getTotalDrawWidth();
 			int imageHeight = getTotalDrawHeight();
 
@@ -3038,10 +3279,10 @@ public class Editor extends JFrame {
 		
 		public void setImage(PapaTexture tex) {
 			this.image = tex;
+			this.ignoreAlphaCache=null;
 			if(image!=null) {
 				this.width = image.getWidth();
 				this.height= image.getHeight();
-				this.ignoreAlphaCache=null;
 			}
 			updateScrollBars();
 			repaint();

@@ -51,8 +51,8 @@ public class BatchConvert extends JDialog  {
 	private JPanel contentPane;
 	private JButton convertButton, optionsButton, cancelButton, closeButton;
 	
-	private final int width = 450;
-	private final int height = 525;
+	private final int width = 460;
+	private final int height = 530;
 	
 	private OptionsSection optionsSection;
 	private ProgressSection progressSection;
@@ -142,6 +142,8 @@ public class BatchConvert extends JDialog  {
 		convertButton = new JButton("Convert");
 		convertButton.setMnemonic('o');
 		convertButton.addActionListener((ActionEvent e) -> {
+			if(!optionsSection.validateSelection())
+				return;
 			progressSection.reset();
 			currentTask = new FileWorker(new File(optionsSection.input.getText()), new File(optionsSection.output.getText()),
 							optionsSection.toImage.isSelected() ? FileHandler.PAPA_INTERFACE : FileHandler.IMAGE_INTERFACE,
@@ -631,9 +633,9 @@ public class BatchConvert extends JDialog  {
 		    output.setTransferHandler(new FileTransferHandler(output));
 		}
 		
-		private void validateSelection() {
+		private boolean validateSelection() {
 			if(isWorking)
-				return;
+				return false;
 			File in = new File(input.getText());
 			File out = new File(output.getText());
 			
@@ -649,8 +651,9 @@ public class BatchConvert extends JDialog  {
 				output.setBorder(defaultTextBorder);
 			else
 				output.setBorder(BorderFactory.createLineBorder(Color.red));
-			
-			convertButton.setEnabled(inpitValid && outputValid);
+			boolean valid = inpitValid && outputValid;
+			convertButton.setEnabled(valid);
+			return valid;
 		}
 		
 		private class FileTransferHandler extends TransferHandler {

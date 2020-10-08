@@ -110,8 +110,9 @@ public class FileHandler {
 		info.setTotalFileCount(toParse.size());
 		
 		if(f.isDirectory()) {
-			if(! info.isInternalMode() && ! checkMassInput(f,toParse,importInterface))
+			if(! info.isInternalMode() && ! checkMassInput(f,toParse,importInterface)) {
 				return;
+			}
 			info.setDirectoryMode();
 		} else {
 			if(toParse.size()==0)
@@ -165,7 +166,6 @@ public class FileHandler {
 		jsp.setPreferredSize(new Dimension(950,150));
 		j.getColumnModel().getColumn(0).setPreferredWidth(300);
 		j.getColumnModel().getColumn(1).setPreferredWidth(650);
-		
 		for(int i =0;i<rejectedFiles.length;i++)
 			model.addRow(new Object[] {rejectedFiles[i].getName(),reasons[i]});
 		
@@ -187,7 +187,6 @@ public class FileHandler {
 		
 		if(Thread.interrupted())
 			throw new InterruptedException();
-		
 		if(f.isDirectory() && recursive) {
 			File [] files = f.listFiles();
 			
@@ -322,8 +321,11 @@ public class FileHandler {
 						
 						b = ImageIO.read(stream);
 						PapaTexture t = new PapaTexture(b, info.getTextureSettings(), null, file.getName());
-						if(link)
+						if(link) {
+							if(!t.getName().startsWith("/"))
+	        					t.setName("/"+t.getName()); // add implicit /
 							p.generateLinkedTexture(t);
+						}
 						else
 							t.attach(p);
 						
