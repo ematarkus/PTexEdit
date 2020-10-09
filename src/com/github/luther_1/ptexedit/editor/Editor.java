@@ -32,6 +32,7 @@ import com.github.luther_1.ptexedit.editor.FileHandler.*;
 import com.github.luther_1.ptexedit.editor.FileHandler.ImportInfo.ActivityListener;
 import com.github.luther_1.ptexedit.papafile.*;
 import com.github.luther_1.ptexedit.papafile.PapaTexture.*;
+import com.github.luther_1.ptexedit.resources.MyIcons;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
 
 import java.io.*;

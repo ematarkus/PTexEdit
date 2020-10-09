@@ -20,6 +20,8 @@ import javax.swing.SpringLayout;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+import com.github.luther_1.ptexedit.resources.MyIcons;
+
 public class RibbonPanel extends JPanel {
 	
 	private static final long serialVersionUID = 8964510055023743821L;

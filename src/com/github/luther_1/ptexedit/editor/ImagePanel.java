@@ -24,6 +24,7 @@ import javax.swing.JScrollBar;
 import javax.swing.TransferHandler;
 
 import com.github.luther_1.ptexedit.papafile.PapaTexture;
+import com.github.luther_1.ptexedit.resources.MyIcons;
 
 public class ImagePanel extends JPanel {
 	private static final long serialVersionUID = 341369068060762310L;

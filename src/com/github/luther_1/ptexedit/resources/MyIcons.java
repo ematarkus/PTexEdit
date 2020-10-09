@@ -1,4 +1,4 @@
-package com.github.luther_1.ptexedit.editor;
+package com.github.luther_1.ptexedit.resources;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -6,6 +6,8 @@ import java.net.URL;
 
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
+
+import com.github.luther_1.ptexedit.editor.Editor;
 
 public class MyIcons {
 	private static final BufferedImage CHECKERBOARD = loadImageFromResources("checkerboard64x64.png");

@@ -30,6 +30,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 import com.github.luther_1.ptexedit.papafile.PapaFile;
 import com.github.luther_1.ptexedit.papafile.PapaTexture;
+import com.github.luther_1.ptexedit.resources.MyIcons;
 
 public class MenuBar extends JMenuBar {
 	
