@@ -49,6 +49,7 @@ import javax.swing.tree.TreePath;
 import com.github.luther_1.ptexedit.papafile.PapaComponent;
 import com.github.luther_1.ptexedit.papafile.PapaFile;
 import com.github.luther_1.ptexedit.papafile.PapaTexture;
+import com.github.luther_1.ptexedit.util.Pair;
 
 public class ConfigPanelSelector extends JPanel {
 	
