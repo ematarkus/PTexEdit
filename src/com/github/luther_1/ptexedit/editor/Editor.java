@@ -21,15 +21,10 @@ package com.github.luther_1.ptexedit.editor;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.tree.*;
-import javax.swing.border.Border;
-import javax.swing.event.*;
 
 import java.awt.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
-import java.awt.font.TextAttribute;
 import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
 
@@ -58,19 +53,7 @@ public class Editor extends JFrame {
 	private static final File settingsFile = new File(System.getProperty("user.home") + 
 						File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	public static Editor APPLICATION_WINDOW;
-	public static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
-	private static final BufferedImage icon = loadImageFromResources("icon.png");
-	private static final BufferedImage iconSmall = loadImageFromResources("iconSmall.png");
-	public static final ImageIcon imageIcon = new ImageIcon(icon);
-	public static final ImageIcon imgPapafile = loadIconFromResources("papafile.png");
-	public static final ImageIcon imgPapafileImage = loadIconFromResources("papafileImage.png");
-	public static final ImageIcon imgPapafileLinked = loadIconFromResources("papafileLinked.png");
-	public static final ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
-	public static final ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
-	public static final ImageIcon imgPapaFileUnsaved = loadIconFromResources("papafileUnsaved.png");
-	public static final ImageIcon plusIcon = loadIconFromResources("plus.png");
-	public static final ImageIcon minusIcon = loadIconFromResources("minus.png");
-	public static final ImageIcon upArrowIcon = loadIconFromResources("upArrow.png");
+	
 	private static final Properties prop = new Properties();
 	public static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
@@ -117,23 +100,7 @@ public class Editor extends JFrame {
 		});
 	}
 	
-	private static BufferedImage loadImageFromResources(String name) {
-		URL imageURL = getResourceURL(name);
-		if (imageURL != null) {
-		    try {
-				return ImageIO.read(imageURL);
-			} catch (IOException e) {}
-		}
-		return new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
-	}
 	
-	private static ImageIcon loadIconFromResources(String name) {
-		return new ImageIcon(getResourceURL(name));
-	}
-	
-	private static URL getResourceURL(String name) {
-		return Editor.class.getResource("/com/github/luther_1/ptexedit/resources/"+name);
-	}
 	
 	private static void readAndApplyConfig() {
 		if(!settingsFile.exists()) {
@@ -553,7 +520,7 @@ public class Editor extends JFrame {
 	public Editor() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
-		setIconImages(Arrays.asList(icon,iconSmall));
+		setIconImages(Arrays.asList(MyIcons.getIcon(),MyIcons.getIconSmall()));
 		
 		contentPane = new JPanel();
 		setContentPane(contentPane);

@@ -219,7 +219,7 @@ public class ConfigPanelSelector extends JPanel {
 		layout.putConstraint(SpringLayout.SOUTH, unloadButton, -5, SpringLayout.SOUTH, this);
 		add(unloadButton);
 		
-		JButton popupButton = new JButton(editor.upArrowIcon);
+		JButton popupButton = new JButton(MyIcons.getUpArrowIcon());
 		popupButton.setMargin(new Insets(0, 0, 0, 0));
 		layout.putConstraint(SpringLayout.NORTH, popupButton, 5, SpringLayout.SOUTH, treeScrollPane);
 		layout.putConstraint(SpringLayout.WEST, popupButton, 5, SpringLayout.EAST, unloadButton);
@@ -556,9 +556,9 @@ public class ConfigPanelSelector extends JPanel {
 		private ImageIcon createImageIconFor(PapaFile p) {
 			ArrayList<ImageIcon> iconList = new ArrayList<ImageIcon>();
 			if(!p.getFile().exists())
-				iconList.add(editor.imgPapaFileUnsaved);
+				iconList.add(MyIcons.getImgPapafileUnsaved());
 			if(p.isLinkedFile())
-				iconList.add(editor.imgPapafileLinked);
+				iconList.add(MyIcons.getImgPapafileLinked());
 			return createImageIcon((ImageIcon[]) iconList.toArray(new ImageIcon[iconList.size()]));
 		}
 		
@@ -570,16 +570,16 @@ public class ConfigPanelSelector extends JPanel {
 			ArrayList<ImageIcon> iconList = new ArrayList<ImageIcon>();
 			
 			if(p.getFile() == null || !p.getFile().exists())
-				iconList.add(editor.imgPapaFileUnsaved);
+				iconList.add(MyIcons.getImgPapafileUnsaved());
 			
-			iconList.add(editor.imgPapafileImage);
+			iconList.add(MyIcons.getImgPapafileImage());
 			if(t.isLinked()) {
-				iconList.add(editor.imgPapafileLinked);
+				iconList.add(MyIcons.getImgPapafileLinked());
 				if(!t.linkValid())
-					iconList.add(editor.imgPapafileError);
+					iconList.add(MyIcons.getImgPapafileError());
 			}
 			if(p.isLinkedFile() && !p.getParent().isLinkedFileReferenced(p))
-				iconList.add(editor.imgPapafileNoLinks);
+				iconList.add(MyIcons.getImgPapafileNoLinks());
 			return createImageIcon((ImageIcon[]) iconList.toArray(new ImageIcon[iconList.size()]));
 				
 		}
@@ -587,7 +587,7 @@ public class ConfigPanelSelector extends JPanel {
 		private ImageIcon createImageIcon(ImageIcon... composite) {
 			BufferedImage iconCache = new BufferedImage(16,16,BufferedImage.TYPE_INT_ARGB);
 			Graphics iconGraphics = iconCache.getGraphics();
-			editor.imgPapafile.paintIcon(this, iconGraphics, 0, 0);
+			MyIcons.getImgPapafile().paintIcon(this, iconGraphics, 0, 0);
 			for(ImageIcon i : composite) {
 				i.paintIcon(this, iconGraphics, 0, 0);
 			}

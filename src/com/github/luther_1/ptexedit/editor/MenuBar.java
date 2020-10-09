@@ -395,7 +395,7 @@ public class MenuBar extends JMenuBar {
 		mHelp.add(mHelpAbout);
 		mHelpAbout.addActionListener((ActionEvent e) -> {
 			JOptionPane.showMessageDialog(editor.APPLICATION_WINDOW, "PTexEdit version: " + editor.VERSION_STRING + "\n"
-					+ "Date: "+editor.BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE, editor.imageIcon);
+					+ "Date: "+editor.BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE, MyIcons.getImageIcon());
 		});
 		mHelpAbout.setMnemonic('a');
 	}

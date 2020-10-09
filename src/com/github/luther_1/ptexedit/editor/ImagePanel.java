@@ -473,6 +473,6 @@ public class ImagePanel extends JPanel {
 		
 		for(int x = (int) (-valueToPixels(editor.horizontal) % 64);x<drawWidth;x+=64)
 			for(int y = (int) (-valueToPixels(editor.vertical)% 64);y<drawHeight;y+=64)
-				g.drawImage(editor.checkerboard, x, y, null);
+				g.drawImage(MyIcons.getCheckerboard(), x, y, null);
 	}
 }

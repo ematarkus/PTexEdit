@@ -43,7 +43,7 @@ public class RibbonPanel extends JPanel {
 		setLayout(layout);
 		
 		JButton plusButton = new JButton();
-		plusButton.setIcon(editor.plusIcon);
+		plusButton.setIcon(MyIcons.getPlusIcon());
 		layout.putConstraint(SpringLayout.NORTH, plusButton, 0, SpringLayout.NORTH, this);
 		layout.putConstraint(SpringLayout.EAST, plusButton, 0, SpringLayout.EAST, this);
 		layout.putConstraint(SpringLayout.SOUTH, plusButton, 0, SpringLayout.SOUTH, this);
@@ -79,7 +79,7 @@ public class RibbonPanel extends JPanel {
 		});
 		
 		JButton minusButton = new JButton();
-		minusButton.setIcon(editor.minusIcon);
+		minusButton.setIcon(MyIcons.getMinusIcon());
 		layout.putConstraint(SpringLayout.NORTH, minusButton, 0, SpringLayout.NORTH, this);
 		layout.putConstraint(SpringLayout.EAST, minusButton, 0, SpringLayout.WEST, zoomSlider);
 		layout.putConstraint(SpringLayout.SOUTH, minusButton, 0, SpringLayout.SOUTH, this);
