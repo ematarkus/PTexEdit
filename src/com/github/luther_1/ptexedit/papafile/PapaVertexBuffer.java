@@ -17,14 +17,14 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PapaFile.  If not, see <https://www.gnu.org/licenses/>.
  */
-package papafile;
+package com.github.luther_1.ptexedit.papafile;
 
 import java.awt.Color;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import papafile.PapaFile.BuildNotification;
+import com.github.luther_1.ptexedit.papafile.PapaFile.BuildNotification;
 
 public class PapaVertexBuffer extends PapaComponent {
 	private static final String[] formats = {	"Position3","Position3Color4bTexCoord2","Position3Color4bTexCoord4", "Position3Color4bTexCoord6", "Position3Normal3",

@@ -17,13 +17,13 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PapaFile.  If not, see <https://www.gnu.org/licenses/>.
  */
-package papafile;
+package com.github.luther_1.ptexedit.papafile;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
-import papafile.PapaFile.BuildNotification;
+import com.github.luther_1.ptexedit.papafile.PapaFile.BuildNotification;
 
 public class PapaMaterial extends PapaComponent {
 	private PapaFile parent;

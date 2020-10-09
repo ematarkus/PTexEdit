@@ -1,4 +1,4 @@
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 import java.awt.Color;
 import java.awt.Point;

@@ -17,7 +17,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PTexEdit.  If not, see <https://www.gnu.org/licenses/>.
  */
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 import java.awt.Color;
 import java.awt.datatransfer.DataFlavor;
@@ -37,10 +37,10 @@ import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.*;
 
-import editor.FileHandler.*;
-import editor.FileHandler.ImportInfo.ActivityListener;
-import papafile.*;
-import papafile.PapaTexture.ImmutableTextureSettings;
+import com.github.luther_1.ptexedit.editor.FileHandler.*;
+import com.github.luther_1.ptexedit.editor.FileHandler.ImportInfo.ActivityListener;
+import com.github.luther_1.ptexedit.papafile.*;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.ImmutableTextureSettings;
 
 public class BatchConvert extends JDialog  {
 

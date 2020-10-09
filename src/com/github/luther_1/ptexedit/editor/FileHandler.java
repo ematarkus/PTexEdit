@@ -17,7 +17,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PTexEdit.  If not, see <https://www.gnu.org/licenses/>.
  */
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
@@ -32,9 +32,9 @@ import javax.swing.*;
 import javax.swing.filechooser.*;
 import javax.swing.table.DefaultTableModel;
 
-import papafile.*;
-import papafile.PapaFile.BuildNotification;
-import papafile.PapaTexture.*;
+import com.github.luther_1.ptexedit.papafile.*;
+import com.github.luther_1.ptexedit.papafile.PapaFile.BuildNotification;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.*;
 
 public class FileHandler {
 	

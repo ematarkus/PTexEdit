@@ -1,4 +1,4 @@
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -23,7 +23,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.TransferHandler;
 
-import papafile.PapaTexture;
+import com.github.luther_1.ptexedit.papafile.PapaTexture;
 
 public class ImagePanel extends JPanel {
 	private static final long serialVersionUID = 341369068060762310L;

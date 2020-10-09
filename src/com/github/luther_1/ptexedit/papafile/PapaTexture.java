@@ -17,7 +17,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PapaFile.  If not, see <https://www.gnu.org/licenses/>.
  */
-package papafile;
+package com.github.luther_1.ptexedit.papafile;
 
 import java.awt.image.BufferedImage;
 import java.awt.Color;
@@ -29,11 +29,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
+import com.github.luther_1.ptexedit.papafile.PapaFile.BuildNotification;
 import com.github.memo33.jsquish.Squish;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
 import com.github.memo33.jsquish.Squish.CompressionType;
-
-import papafile.PapaFile.BuildNotification;
 
 /**
  * A container class to hold Texture objects. Each PapaTexture has a main texture, and possibly some MipMap textures.

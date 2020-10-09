@@ -17,17 +17,16 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PTexEdit.  If not, see <https://www.gnu.org/licenses/>.
  */
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 import java.awt.Color;
 import java.awt.event.*;
 import java.io.File;
 
+import com.github.luther_1.ptexedit.papafile.PapaFile;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.ImmutableTextureSettings;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.TextureSettings;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
-
-import papafile.PapaFile;
-import papafile.PapaTexture.ImmutableTextureSettings;
-import papafile.PapaTexture.TextureSettings;
 
 import javax.swing.*;
 

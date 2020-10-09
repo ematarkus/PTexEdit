@@ -1,4 +1,4 @@
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 public class Pair<K, V> {
 	private K key;

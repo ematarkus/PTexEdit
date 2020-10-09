@@ -1,10 +1,10 @@
-package papafile;
+package com.github.luther_1.ptexedit.papafile;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
-import papafile.PapaFile.BuildNotification;
+import com.github.luther_1.ptexedit.papafile.PapaFile.BuildNotification;
 
 public class PapaSkeleton extends PapaComponent {
 	private PapaFile parent;

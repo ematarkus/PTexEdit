@@ -17,7 +17,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PTexEdit.  If not, see <https://www.gnu.org/licenses/>.
  */
-package editor;
+package com.github.luther_1.ptexedit.editor;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -33,12 +33,11 @@ import java.awt.font.TextAttribute;
 import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
 
+import com.github.luther_1.ptexedit.editor.FileHandler.*;
+import com.github.luther_1.ptexedit.editor.FileHandler.ImportInfo.ActivityListener;
+import com.github.luther_1.ptexedit.papafile.*;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.*;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
-
-import editor.FileHandler.*;
-import editor.FileHandler.ImportInfo.ActivityListener;
-import papafile.*;
-import papafile.PapaTexture.*;
 
 import java.io.*;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -133,7 +132,7 @@ public class Editor extends JFrame {
 	}
 	
 	private static URL getResourceURL(String name) {
-		return Editor.class.getResource("/resources/"+name);
+		return Editor.class.getResource("/com/github/luther_1/ptexedit/resources/"+name);
 	}
 	
 	private static void readAndApplyConfig() {

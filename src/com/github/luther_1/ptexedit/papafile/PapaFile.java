@@ -17,7 +17,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PapaFile.  If not, see <https://www.gnu.org/licenses/>.
  */
-package papafile;
+package com.github.luther_1.ptexedit.papafile;
 
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -29,11 +29,10 @@ import java.util.Map.Entry;
 
 import javax.imageio.ImageIO;
 
+import com.github.luther_1.ptexedit.papafile.PapaModel.PapaMeshBinding;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.ImmutableTextureSettings;
+import com.github.luther_1.ptexedit.papafile.PapaTexture.TextureSettings;
 import com.github.memo33.jsquish.Squish.CompressionMethod;
-
-import papafile.PapaModel.PapaMeshBinding;
-import papafile.PapaTexture.ImmutableTextureSettings;
-import papafile.PapaTexture.TextureSettings;
 
 public class PapaFile extends PapaComponent{
 	
