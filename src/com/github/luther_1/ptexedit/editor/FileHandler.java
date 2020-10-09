@@ -38,42 +38,44 @@ import com.github.luther_1.ptexedit.papafile.PapaTexture.*;
 
 public class FileHandler {
 	
-	private static LinkedBlockingQueue<Runnable> queue;
-	private static ThreadPoolExecutor executor;
-	private static Object lock = new Object();
-	private static Vector<Future<?>> tasks;
-	private static FileNameExtensionFilter[] imageFilters;
-	private static FileNameExtensionFilter papaFilter = new FileNameExtensionFilter("Planetary Annihilation File (*.papa)", "papa");
-	private static Vector<RunnableHandle> submittedTasks;
+	private LinkedBlockingQueue<Runnable> queue;
+	private ThreadPoolExecutor executor;
+	private Object lock = new Object();
+	private Vector<Future<?>> tasks;
+	private FileNameExtensionFilter[] imageFilters;
+	private FileNameExtensionFilter papaFilter = new FileNameExtensionFilter("Planetary Annihilation File (*.papa)", "papa");
+	private Vector<RunnableHandle> submittedTasks;
 	
-	private static void initializeThreadPool() {
+	private final Editor editor;
+	
+	public FileHandler(Editor editor) {
+		this.editor = editor;
+		initializeThreadPool();
+		generateFileNameFilters();
+	}
+	
+	private void initializeThreadPool() {
 		 queue = new LinkedBlockingQueue<Runnable>();
 		 executor = new ThreadPoolExecutor(4, 4, 500, TimeUnit.MILLISECONDS, queue);
 		 tasks = new Vector<Future<?>>();
 		 submittedTasks = new Vector<RunnableHandle>();
 	}
 	
-	static {
-		initializeThreadPool();
-		generateFileNameFilters();
-	}
-	
-	
-	public static void readFiles(File f, ImportInterface importInterface, ImportInfo info) throws InterruptedException {
+	public void readFiles(File f, ImportInterface importInterface, ImportInfo info) throws InterruptedException {
 		readFiles(f, importInterface, info, true, false);
 	}
 	
-	public static void readFiles(File f, ImportInterface importInterface, ImportInfo info, boolean recursive, boolean wait) throws InterruptedException {
+	public void readFiles(File f, ImportInterface importInterface, ImportInfo info, boolean recursive, boolean wait) throws InterruptedException {
 		synchronized(executor) { // do not let more than one thread call readFiles at the same time.
 			if(!f.exists()) {
-				Editor.showError("File does not exist", "IO Error", new Object[] {"Ok"}, "Ok");
+				editor.showError("File does not exist", "IO Error", new Object[] {"Ok"}, "Ok");
 				return;
 			}
 			readFilesInternal(f, importInterface, info,recursive, wait);
 		}
 	}
 	
-	private static int determineMode(File f) {
+	private int determineMode(File f) {
 		File[] files = f.listFiles();
 		int papa = 0;
 		int image = 0;
@@ -103,7 +105,7 @@ public class FileHandler {
 		return 1;
 	}
 	
-	private static void readFilesInternal(File f, ImportInterface importInterface, ImportInfo info,boolean recursive, boolean wait) throws InterruptedException {
+	private void readFilesInternal(File f, ImportInterface importInterface, ImportInfo info,boolean recursive, boolean wait) throws InterruptedException {
 		
 		info.resetStatistics();  // in case of reuse
 		ArrayList<StreamableData> toParse = getValidInputs(f, importInterface, info, recursive);
@@ -147,11 +149,11 @@ public class FileHandler {
 				JComponent t = getErrorTable(info.getRejectedFiles(),info.getRejectedFileReasons());
 				if(info.getNumAcceptedFiles()==0) {
 					if(info.getNumRejectedFiles()!=0)
-						Editor.showError(t, "Unable to read any "+importInterface.getType()+" files from the folder", new Object[] {"Ok"}, "Ok");
+						editor.showError(t, "Unable to read any "+importInterface.getType()+" files from the folder", new Object[] {"Ok"}, "Ok");
 					else
-						Editor.showError("Unable to find any "+importInterface.getType()+" files in the folder", "Invalid Input", new Object[] {"Ok"}, "Ok");
+						editor.showError("Unable to find any "+importInterface.getType()+" files in the folder", "Invalid Input", new Object[] {"Ok"}, "Ok");
 				} else {
-					Editor.showError(t, "Import Error Summary", new Object[] {"Ok"}, "Ok");
+					editor.showError(t, "Import Error Summary", new Object[] {"Ok"}, "Ok");
 				}
 			}
 		}
@@ -199,7 +201,7 @@ public class FileHandler {
 		
 	}
 	
-	public static void cancelActiveTask() {
+	public void cancelActiveTask() {
 		executor.shutdownNow();
 		try {
 			executor.awaitTermination(60, TimeUnit.MINUTES);
@@ -217,11 +219,11 @@ public class FileHandler {
 		initializeThreadPool();
 	}
 	
-	private static boolean checkMassInput(File source, ArrayList<StreamableData> files, ImportInterface importInterface) {
+	private boolean checkMassInput(File source, ArrayList<StreamableData> files, ImportInterface importInterface) {
 		int count = files.size();
 		if(count > 100) {
 			synchronized(lock) {
-				int result = Editor.showError("You are attempting to open " + count + " " + importInterface.getType()
+				int result = editor.showError("You are attempting to open " + count + " " + importInterface.getType()
 						+ " files.\nAre you sure you want to continue?\n(you may want to use tools => convert folder)", source.getAbsolutePath(), new Object[] {"Yes","No" }, "No");
 				if(result!=0)
 					return false;
@@ -239,8 +241,7 @@ public class FileHandler {
 		return s.substring(index+1).toLowerCase();
 	}
 	
-	public static final ImportInterface PAPA_INTERFACE = new ImportInterface() {
-
+	public final ImportInterface PAPA_INTERFACE = new ImportInterface() {
 		@Override
 		public boolean filter(File file) {
 			return file.getPath().endsWith("papa");
@@ -282,8 +283,7 @@ public class FileHandler {
 		}
 	};
 	
-	public static final ImportInterface IMAGE_INTERFACE = new ImportInterface() {
-		
+	public final ImportInterface IMAGE_INTERFACE = new ImportInterface() {
 		private String[] extensions = ImageIO.getReaderFileSuffixes();
 
 		{
@@ -350,7 +350,7 @@ public class FileHandler {
 		}
 	};
 	
-	public static abstract class ImportInterface {
+	public abstract class ImportInterface {
 		public abstract boolean filter(File file);
 		public abstract RunnableHandle getRunnable(Handle handle, InputStream stream, File input, ImportInfo info);
 		public abstract String getType();
@@ -358,7 +358,7 @@ public class FileHandler {
 			info.reject(file, reason);
 			if( ! info.isDirectoryMode() && ! info.isInternalMode()) {
 				synchronized(lock) {
-					Editor.showError(reason, "Error: " + file.getName(), new Object[] {"Ok"}, "Ok");
+					editor.showError(reason, "Error: " + file.getName(), new Object[] {"Ok"}, "Ok");
 				}
 			}
 		}
@@ -609,11 +609,11 @@ public class FileHandler {
 		}
 	}
 	
-	public static boolean isPapa(File f) {
+	public boolean isPapa(File f) {
 		return PAPA_INTERFACE.filter(f);
 	}
 	
-	public static ImportInterface determineInterface(File f) {
+	public ImportInterface determineInterface(File f) {
 		if(!f.exists())
 			throw new IllegalArgumentException("File does not exist");
 		if(f.isFile())
@@ -625,11 +625,11 @@ public class FileHandler {
 		int mode = determineMode(f);
 		
 		if(mode==0) {
-			Editor.showError("No recognized files in the directory", "Invalid Directory", new Object[] {"Ok"}, "Ok");
+			editor.showError("No recognized files in the directory", "Invalid Directory", new Object[] {"Ok"}, "Ok");
 			return null;
 		}
 		if(mode==1) {
-			int result = Editor.optionBox("What mode would you like to open the directory in?", f.getAbsolutePath(), new Object[] {"Papa","Image","Cancel"}, "Cancel");
+			int result = editor.optionBox("What mode would you like to open the directory in?", f.getAbsolutePath(), new Object[] {"Papa","Image","Cancel"}, "Cancel");
 			if(result==-1 || result == 2)
 				return null;
 			mode = result + 2;
@@ -746,11 +746,11 @@ public class FileHandler {
 		return tmp;
 	}
 	
-	public static FileNameExtensionFilter[] getImageFilters() {
+	public FileNameExtensionFilter[] getImageFilters() {
 		return imageFilters;
 	}
 	
-	public static FileNameExtensionFilter getImageFilter(String name) {
+	public FileNameExtensionFilter getImageFilter(String name) {
 		for(FileNameExtensionFilter f : imageFilters) {
 			if(f.getExtensions().length != 1)
 				continue;
@@ -764,11 +764,11 @@ public class FileHandler {
 		return null;
 	}
 	
-	public static FileNameExtensionFilter getPapaFilter() {
+	public FileNameExtensionFilter getPapaFilter() {
 		return papaFilter;
 	}
 	
-	private static void generateFileNameFilters() {
+	private void generateFileNameFilters() {
 		String[] filters = ImageIO.getWriterFileSuffixes();
 		imageFilters = new FileNameExtensionFilter[filters.length + 1];
 		imageFilters[0] = new FileNameExtensionFilter("Image Files (*."+String.join(", *.", ImageIO.getReaderFileSuffixes())+")", ImageIO.getReaderFileSuffixes());
@@ -776,11 +776,11 @@ public class FileHandler {
 			imageFilters[i + 1] = new FileNameExtensionFilter(filters[i].toUpperCase()+" Files (*."+filters[i]+")", filters[i]);
 	}
 
-	public static void saveFileTo(PapaFile target, File selectedFile) throws IOException {
+	public void saveFileTo(PapaFile target, File selectedFile) throws IOException {
 		File file = enforceExtension(selectedFile, papaFilter);
 		
 		if(file.exists())
-			if(Editor.optionBox(file.getName() +" already exists.\nDo you want to replace it?", "Confirm Save As", new Object[] {"Yes","No"}, "No") != 0)
+			if(editor.optionBox(file.getName() +" already exists.\nDo you want to replace it?", "Confirm Save As", new Object[] {"Yes","No"}, "No") != 0)
 				return;
 		try {
 			writeFile(target,file);
@@ -791,7 +791,7 @@ public class FileHandler {
 		target.setFileLocation(file);
 	}
 
-	public static void exportImageTo(PapaTexture activeTexture, File selectedFile, FileNameExtensionFilter filter) throws IOException {
+	public void exportImageTo(PapaTexture activeTexture, File selectedFile, FileNameExtensionFilter filter) throws IOException {
 		File file = enforceExtension(selectedFile,filter);
 		
 		int index = selectedFile.getName().lastIndexOf(".") + 1;
@@ -800,11 +800,11 @@ public class FileHandler {
 			ext = selectedFile.getName().substring(index).toLowerCase();
 		
 		if(file==null) {
-			Editor.showError("Extension "+ext+" does not match any known extensions", "Export error", new Object[] {"Ok"}, "Ok");
+			editor.showError("Extension "+ext+" does not match any known extensions", "Export error", new Object[] {"Ok"}, "Ok");
 			return;
 		}
 		if(file.exists())
-			if(Editor.showError(file.getName() +" already exists.\nDo you want to replace it?", "Confirm Export", new Object[] {"Yes","No"}, "No") != 0)
+			if(editor.showError(file.getName() +" already exists.\nDo you want to replace it?", "Confirm Export", new Object[] {"Yes","No"}, "No") != 0)
 				return;
 		exportImage(activeTexture,file);
 	}

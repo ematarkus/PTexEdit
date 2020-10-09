@@ -61,11 +61,13 @@ public class BatchConvert extends JDialog  {
 	
 	private boolean isWorking;
 	
+	private final Editor editor;
 	
-	public BatchConvert(JFrame owner, PapaOptions o) {
-		super(owner);
+	public BatchConvert(Editor editor, PapaOptions o) {
+		super(editor);
+		this.editor = editor;
 		
-		setIconImages(owner.getIconImages());
+		setIconImages(editor.getIconImages());
 		
 		papaOptions = o;
 		addWindowListener(wl);
@@ -146,8 +148,8 @@ public class BatchConvert extends JDialog  {
 				return;
 			progressSection.reset();
 			currentTask = new FileWorker(new File(optionsSection.input.getText()), new File(optionsSection.output.getText()),
-							optionsSection.toImage.isSelected() ? FileHandler.PAPA_INTERFACE : FileHandler.IMAGE_INTERFACE,
-							optionsSection.toImage.isSelected() ? FileHandler.getImageFilters()[optionsSection.formats.getSelectedIndex() + 1] : FileHandler.getPapaFilter(),
+							optionsSection.toImage.isSelected() ? getFileHandler().PAPA_INTERFACE : getFileHandler().IMAGE_INTERFACE,
+							optionsSection.toImage.isSelected() ? getFileHandler().getImageFilters()[optionsSection.formats.getSelectedIndex() + 1] : getFileHandler().getPapaFilter(),
 							papaOptions.getCurrentSettings(), optionsSection.subdirectories.isSelected(), optionsSection.writeLinked.isSelected(),
 							optionsSection.overwrite.isSelected(), optionsSection.ignoreHierarchy.isSelected());
 			currentTask.execute();
@@ -161,6 +163,10 @@ public class BatchConvert extends JDialog  {
 		optionsSection.validateSelection();
 		
 		this.getRootPane().setDefaultButton(closeButton);
+	}
+	
+	private FileHandler getFileHandler() {
+		return editor.getFileHandler();
 	}
 	
 	private void setWorking(boolean working) {
@@ -237,7 +243,7 @@ public class BatchConvert extends JDialog  {
 			} catch(Exception e) {
 				throw new IllegalArgumentException(e);
 			}
-			papaInput = importInterface == FileHandler.PAPA_INTERFACE;
+			papaInput = importInterface == getFileHandler().PAPA_INTERFACE;
 			this.settings=settings;
 			this.fileExtensionFilter=fileExtensionFilter;
 			this.recursive=recursive;
@@ -286,13 +292,13 @@ public class BatchConvert extends JDialog  {
 			});
 			info.setInternalMode(true);
 			try {
-				FileHandler.readFiles(input, importInterface, info, recursive, true);
+				getFileHandler().readFiles(input, importInterface, info, recursive, true);
 				if(info.getNumAcceptedFiles() ==0 && info.getNumRejectedFiles()==0)
 					logSection.logLater("Input contains no "+importInterface.getType() +" files");
 			} catch (InterruptedException e) {
 				cancelButton.setEnabled(false);
 				progressSection.setStatus("Stopping");
-				FileHandler.cancelActiveTask();
+				getFileHandler().cancelActiveTask();
 				progressSection.setStatus("Task Cancelled");
 			}
 			logSection.logLater("Finished conversion of "+input.getName());

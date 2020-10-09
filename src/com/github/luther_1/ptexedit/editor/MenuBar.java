@@ -61,7 +61,7 @@ public class MenuBar extends JMenuBar {
 			
 			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
 			j.setAcceptAllFileFilterUsed(false);
-			j.setFileFilter(FileHandler.getPapaFilter());
+			j.setFileFilter(getFileHandler().getPapaFilter());
 			if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
 				File file = j.getSelectedFile();
 				editor.readAll(file);
@@ -103,7 +103,7 @@ public class MenuBar extends JMenuBar {
 			j.setAcceptAllFileFilterUsed(false);
 			j.setDialogTitle("Import File");
 			
-			for(FileNameExtensionFilter f : FileHandler.getImageFilters())
+			for(FileNameExtensionFilter f : getFileHandler().getImageFilters())
 				j.addChoosableFileFilter(f);
 			
 			if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -124,14 +124,14 @@ public class MenuBar extends JMenuBar {
 			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
 			j.setAcceptAllFileFilterUsed(false);
 			j.setDialogTitle("Export File");
-			for(FileNameExtensionFilter f : FileHandler.getImageFilters())
+			for(FileNameExtensionFilter f : getFileHandler().getImageFilters())
 				j.addChoosableFileFilter(f);
 			
-			j.setFileFilter(FileHandler.getImageFilter("png"));
+			j.setFileFilter(getFileHandler().getImageFilter("png"));
 			
 			if(editor.activeFile.getFile()!=null) {
 				if(editor.activeFile.getFile().exists())
-					j.setSelectedFile(FileHandler.replaceExtension(editor.activeFile.getFile(), FileHandler.getImageFilter("png")));
+					j.setSelectedFile(FileHandler.replaceExtension(editor.activeFile.getFile(), getFileHandler().getImageFilter("png")));
 				else
 					j.setCurrentDirectory(getLowestExistingDirectory(editor.activeFile.getFile()));
 			}
@@ -143,7 +143,7 @@ public class MenuBar extends JMenuBar {
 			editor.startOperation();
 			if (j.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
 				try {
-					FileHandler.exportImageTo(tex, j.getSelectedFile(), (FileNameExtensionFilter)j.getFileFilter());
+					getFileHandler().exportImageTo(tex, j.getSelectedFile(), (FileNameExtensionFilter)j.getFileFilter());
 				} catch (IOException e1) {
 					editor.showError(e1.getMessage(), "Export Error", new Object[] {"Ok"}, "Ok");
 				}
@@ -303,7 +303,7 @@ public class MenuBar extends JMenuBar {
 		mToolsConvertFolder.setMnemonic('c');
 		mTools.add(mToolsConvertFolder);
 		mToolsConvertFolder.addActionListener((ActionEvent e) -> {
-			editor.batchConvert.showAt(editor.APPLICATION_WINDOW.getX() + editor.APPLICATION_WINDOW.getWidth() / 2, editor.APPLICATION_WINDOW.getY() + editor.APPLICATION_WINDOW.getHeight() / 2);
+			editor.batchConvert.showAt(editor.getX() + editor.getWidth() / 2, editor.getY() + editor.getHeight() / 2);
 		});
 		
 		mToolsShowInFileBrowser = new JMenuItem("Show in File Manager");
@@ -394,10 +394,14 @@ public class MenuBar extends JMenuBar {
 		JMenuItem mHelpAbout = new JMenuItem("About");
 		mHelp.add(mHelpAbout);
 		mHelpAbout.addActionListener((ActionEvent e) -> {
-			JOptionPane.showMessageDialog(editor.APPLICATION_WINDOW, "PTexEdit version: " + editor.VERSION_STRING + "\n"
+			JOptionPane.showMessageDialog(editor, "PTexEdit version: " + editor.VERSION_STRING + "\n"
 					+ "Date: "+editor.BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE, MyIcons.getImageIcon());
 		});
 		mHelpAbout.setMnemonic('a');
+	}
+	
+	public FileHandler getFileHandler() {
+		return editor.getFileHandler();
 	}
 	
 	public int getSelectedRadioButton() { // I hate ButtonGroup.
@@ -475,16 +479,16 @@ public class MenuBar extends JMenuBar {
 		
 		j.setFileSelectionMode(JFileChooser.FILES_ONLY);
 		j.setDialogTitle("Save Papa File");
-		j.setFileFilter(FileHandler.getPapaFilter());
+		j.setFileFilter(getFileHandler().getPapaFilter());
 		if(target.getFile()!=null) {
 			if(!target.getFile().exists())
 				j.setCurrentDirectory(getLowestExistingDirectory(target.getFile()));
-			j.setSelectedFile(FileHandler.replaceExtension(target.getFile(), FileHandler.getPapaFilter()));
+			j.setSelectedFile(FileHandler.replaceExtension(target.getFile(), getFileHandler().getPapaFilter()));
 		}
 		editor.startOperation();
 		if (j.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
 			try {
-				FileHandler.saveFileTo(target, j.getSelectedFile());
+				getFileHandler().saveFileTo(target, j.getSelectedFile());
 			} catch (IOException e1) {
 				editor.showError(e1.getMessage(), "Save As...", new Object[] {"Ok"}, "Ok");
 			}
@@ -525,7 +529,7 @@ public class MenuBar extends JMenuBar {
 		if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
 			File file = j.getSelectedFile();
 			if(file.listFiles((File dir, String name)-> name.equals("pa")).length==0 && 
-				Editor.optionBox("The selected directory does not include the /pa subdirectory.\n Are you sure this is the correct directory?",
+				editor.optionBox("The selected directory does not include the /pa subdirectory.\n Are you sure this is the correct directory?",
 								"Confirm Directory", new Object[] {"Yes","Cancel"}, "Cancel") != 0) {
 					return;
 			}

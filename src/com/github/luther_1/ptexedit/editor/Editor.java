@@ -47,14 +47,10 @@ public class Editor extends JFrame {
 	public 	static boolean ALLOW_EMPTY_FILES = false;
 	public 	static boolean SUPPRESS_WARNINGS = false;
 	private static final long serialVersionUID = 894467903207605180L;
-	private static final String APPLICATION_NAME = "PTexEdit";
+	
 	public static final String VERSION_STRING = "0.3";
 	public static final String BUILD_DATE = "August 1, 2020";
-	private static final File settingsFile = new File(System.getProperty("user.home") + 
-						File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
-	public static Editor APPLICATION_WINDOW;
 	
-	private static final Properties prop = new Properties();
 	public static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
 	private JPanel contentPane;
@@ -72,451 +68,19 @@ public class Editor extends JFrame {
 	public ClipboardListener clipboardOwner;
 	
 	private JPanel config, canvas;
-	private JSplitPane mainPanel;
+	public JSplitPane mainPanel;
 	JScrollBar horizontal;
 	public JScrollBar vertical;
 	private JPanel box;
 	public MenuBar menu;
 	
-	private PapaOptions papaOptions;
+	public PapaOptions papaOptions;
 	public BatchConvert batchConvert;
 	
 	private int loadCounter = 0;
 	
-	public static void main(String[] args) {
-		applyPlatformChanges();
-		
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				APPLICATION_WINDOW = new Editor();
-				
-				readAndApplyConfig();
-				addShutdownHooks();
-				addUncaughtExceptionHandler();
-				
-				APPLICATION_WINDOW.setTitle(APPLICATION_NAME);
-				APPLICATION_WINDOW.setVisible(true);
-			}
-		});
-	}
+	private FileHandler fileHandler = null;
 	
-	
-	
-	private static void readAndApplyConfig() {
-		if(!settingsFile.exists()) {
-			settingsFile.getParentFile().mkdirs();
-			try {
-				settingsFile.createNewFile();
-			} catch (IOException e) {}
-		}
-		
-		FileInputStream fis = null;
-		
-		try {
-			fis = new FileInputStream(settingsFile);
-			prop.load(fis);
-		} catch (IOException e) {
-			System.err.println("Could not load settings file.");
-		} finally {
-			try {
-				fis.close();
-			} catch (IOException e) {}
-		}
-		
-		Editor e = APPLICATION_WINDOW;
-		e.setLocation(Integer.valueOf(prop.getProperty("Application.Location.X", "100")), Integer.valueOf(prop.getProperty("Application.Location.Y", "100")));
-		e.setBounds(Integer.valueOf(prop.getProperty("Application.Location.X", "100")), Integer.valueOf(prop.getProperty("Application.Location.Y", "100")),
-					Integer.valueOf(prop.getProperty("Application.Size.Width", "1060")), Integer.valueOf(prop.getProperty("Application.Size.Height", "800")));
-		e.mainPanel.setDividerLocation(Integer.valueOf(prop.getProperty("Application.SplitPane.Location", "395")));
-		e.setExtendedState(Integer.valueOf(prop.getProperty("Application.State", ""+JFrame.NORMAL)));
-		
-		e.menu.setSelectedRadioButton(Integer.valueOf(prop.getProperty("Application.Menu.View.Channels", "0")));
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Luminance", "false")))
-			e.menu.mViewLuminance.doClick(0); // The fastest click in the west.
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Alpha", "false")))
-			e.menu.mViewNoAlpha.doClick(0);
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Tile", "false")))
-			e.menu.mViewTile.doClick(0);
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.DXT", "false")))
-			e.menu.mViewDXT.doClick(0);
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.ShowRoot", "false")))
-			e.menu.mOptionsShowRoot.doClick(0);
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.AllowEmpty", "false")))
-			e.menu.mOptionsAllowEmpty.doClick(0);
-		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.SuppressWarnings", "false")))
-			e.menu.mOptionsAllowEmpty.doClick(0);
-		//e.maxThreads = Integer.valueOf(prop.getProperty("Application.Config.MaxThreads", "4"));
-		
-		TextureSettings t = new TextureSettings();
-		TextureSettings def = TextureSettings.defaultSettings();
-		
-		t.setFormat(prop.getProperty("PapaOptions.Format", def.getFormat()));
-		t.setCompressionMethod(CompressionMethod.valueOf(prop.getProperty("PapaOptions.DxtMethod", ""+def.getCompressionMethod())));
-		t.setGenerateMipmaps(Boolean.valueOf(prop.getProperty("PapaOptions.GenMipmaps", ""+def.getGenerateMipmaps())));
-		t.setMipmapResizeMethod(Integer.valueOf(prop.getProperty("PapaOptions.MipmapResizeMethod", ""+def.getMipmapResizeMethod())));
-		t.setSRGB(Boolean.valueOf(prop.getProperty("PapaOptions.SRGB", ""+def.getSRGB())));
-		t.setResize(Boolean.valueOf(prop.getProperty("PapaOptions.Resize", ""+def.getResize())));
-		t.setResizeMethod(Integer.valueOf(prop.getProperty("PapaOptions.ResizeMethod", ""+def.getResizeMethod())));
-		t.setResizeMode(Integer.valueOf(prop.getProperty("PapaOptions.ResizeMode", ""+def.getResizeMode())));
-		
-		PapaFile.setPADirectory(prop.getProperty("PapaFile.PADirectory",null)!=null ? new File(prop.getProperty("PapaFile.PADirectory")) : null);
-		
-		e.papaOptions = new PapaOptions(e, t.immutable());
-		e.batchConvert = new BatchConvert(e, e.papaOptions);
-		
-		e.batchConvert.setRecursive(Boolean.valueOf(prop.getProperty("BatchConvert.Recursive", ""+true)));
-		e.batchConvert.setWriteLinkedFiles(Boolean.valueOf(prop.getProperty("BatchConvert.WriteLinked", ""+false)));
-		e.batchConvert.setOverwrite(Boolean.valueOf(prop.getProperty("BatchConvert.Overwrite", ""+false)));
-		e.batchConvert.setIgnoreHierarchy(Boolean.valueOf(prop.getProperty("BatchConvert.IgnoreHierarchy", ""+false)));
-	}
-	
-	private static void addShutdownHooks() {
-		Runtime.getRuntime().addShutdownHook(onExit);
-	}
-	
-	private static void addUncaughtExceptionHandler() {
-		Thread.setDefaultUncaughtExceptionHandler(onThreadException);
-	}
-	
-	private static void applyPlatformChanges() {
-		float size = 12f;
-		String name = System.getProperty("os.name").toLowerCase(Locale.ENGLISH);
-		if(name.contains("linux") || name.contains("unix"))
-			size = 10f;
-		else if(name.contains("mac"))
-			size = 11f;
-		try {
-			UIManager.put("Label.font", UIManager.getFont("Label.font").deriveFont(size));
-			UIManager.put("CheckBox.font", UIManager.getFont("CheckBox.font").deriveFont(size));
-			UIManager.put("ComboBox.font", UIManager.getFont("ComboBox.font").deriveFont(size));
-			UIManager.put("Button.font", UIManager.getFont("Button.font").deriveFont(size));
-			UIManager.put("RadioButton.font", UIManager.getFont("RadioButton.font").deriveFont(size));
-		} catch (NullPointerException e) {
-			System.err.println("Failed to set font");
-		}
-		
-	}
-	
-	private static final UncaughtExceptionHandler onThreadException = new UncaughtExceptionHandler() {
-		@Override
-		public void uncaughtException(Thread t, Throwable e) {
-			Thread.setDefaultUncaughtExceptionHandler(null); // prevent other errors from cascading if total failure
-			FileHandler.cancelActiveTask();
-			String message = "Fatal error in thread "+t.getName()+":\n"+e.getClass().getName()+": "+e.getMessage()+"\n";
-			Throwable cause = e;
-			for(StackTraceElement element : e.getStackTrace())
-				message+="\n"+element.toString();
-			while(cause.getCause()!=null) {
-				cause = cause.getCause();
-				message+="\n\nCaused by:\n"+cause.getClass().getName()+": "+cause.getMessage()+"\n";
-				for(StackTraceElement element : cause.getStackTrace())
-					message+="\n"+element.toString();
-			}
-			
-			
-			JTextArea jte = new JTextArea();
-			jte.setEditable(false);
-			jte.setText(message);
-			jte.setCaretPosition(0);
-			
-			JScrollPane jsp = new JScrollPane(jte,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-			jsp.setPreferredSize(new Dimension(650,350));
-			
-			Editor.showError(jsp, "Fatal Error", new Object[] {"Exit"}, "Exit");
-			System.err.println(message);
-			System.exit(-1);
-		}
-	};
-	
-	private static final Thread onExit = new Thread(new Runnable() {
-		
-		public void run() {
-			if(!settingsFile.exists())
-				return;
-			
-			Editor e = APPLICATION_WINDOW;
-			int state = e.getExtendedState();
-			if(state!=JFrame.MAXIMIZED_BOTH && state!=JFrame.MAXIMIZED_HORIZ && state!=JFrame.MAXIMIZED_VERT) {
-				prop.setProperty("Application.Location.X", 			""+(int)e.getX());
-				prop.setProperty("Application.Location.Y", 			""+(int)e.getY());
-				prop.setProperty("Application.Size.Width",			""+(int)e.getWidth());
-				prop.setProperty("Application.Size.Height", 		""+(int)e.getHeight());
-			}
-			prop.setProperty("Application.SplitPane.Location", 				""+(int)e.mainPanel.getDividerLocation());
-			prop.setProperty("Application.State", 							""+e.getExtendedState());
-			prop.setProperty("Application.Menu.View.Channels", 				""+e.menu.getSelectedRadioButton());
-			prop.setProperty("Application.Menu.View.Luminance", 			""+e.menu.mViewLuminance.isSelected());
-			prop.setProperty("Application.Menu.View.Alpha", 				""+e.menu.mViewNoAlpha.isSelected());
-			prop.setProperty("Application.Menu.View.Tile", 					""+e.menu.mViewTile.isSelected());
-			prop.setProperty("Application.Menu.View.DXT", 					""+e.menu.mViewDXT.isSelected());
-			prop.setProperty("Application.Menu.Options.ShowRoot",			""+e.menu.mOptionsShowRoot.isSelected());
-			prop.setProperty("Application.Menu.Options.AllowEmpty",			""+e.menu.mOptionsAllowEmpty.isSelected());
-			prop.setProperty("Application.Menu.Options.SuppressWarnings",	""+e.menu.mOptionsSuppressWarnings.isSelected());
-			//prop.setProperty("Application.Config.MaxThreads", 	""+e.maxThreads);
-			
-			ImmutableTextureSettings settings = e.papaOptions.getCurrentSettings();
-			
-			prop.setProperty("PapaOptions.Format", 				""+settings.format);
-			prop.setProperty("PapaOptions.DxtMethod", 			""+settings.method);
-			prop.setProperty("PapaOptions.GenMipmaps", 			""+settings.generateMipmaps);
-			prop.setProperty("PapaOptions.MipmapResizeMethod", 	""+settings.mipmapResizeMethod);
-			prop.setProperty("PapaOptions.SRGB", 				""+settings.SRGB);
-			prop.setProperty("PapaOptions.Resize", 				""+settings.resize);
-			prop.setProperty("PapaOptions.ResizeMethod", 		""+settings.resizeMethod);
-			prop.setProperty("PapaOptions.ResizeMode", 			""+settings.resizeMode);
-			
-			BatchConvert b = e.batchConvert;
-			prop.setProperty("BatchConvert.Recursive", 			""+b.isRecursive());
-			prop.setProperty("BatchConvert.WriteLinked", 		""+b.isWritingLinkedFiles());
-			prop.setProperty("BatchConvert.Overwrite", 			""+b.isOverwrite());
-			prop.setProperty("BatchConvert.IgnoreHierarchy", 	""+b.isIgnoreHierarchy());
-			
-			if(PapaFile.getPlanetaryAnnihilationDirectory()!=null)
-				prop.setProperty("PapaFile.PADirectory", 			PapaFile.getPlanetaryAnnihilationDirectory().getAbsolutePath());
-			
-			try {
-				prop.store(new FileOutputStream(settingsFile), null);
-			} catch (IOException e2) { e2.printStackTrace();}
-		}
-	});
-	
-	private class FileWorker extends SwingWorker<Void,PapaFile> {
-
-		private File[] files;
-		protected ImmutableTextureSettings settings = null;
-		protected ImportInterface importInterface = null;
-		private boolean ignoreReprompt = false;
-		private float subProgress = 0f;
-		private float totalSubFiles = 0f;
-		private AtomicInteger processedFiles = new AtomicInteger();
-		private boolean optimize = false;
-		private int optimizeCounter = 0, optimizeFactor=0;
-		
-		public FileWorker(File...files) {
-			this.files = files;
-			papaOptions.setMultiMode(files.length>1);
-		}
-		
-		public float getSubProgress() {
-			return subProgress;
-		}
-		
-		@Override
-		protected Void doInBackground() throws Exception {
-			long time = System.nanoTime();
-			SwingUtilities.invokeAndWait(() -> APPLICATION_WINDOW.setReadingFiles(true));
-			processedFiles.set(0);
-			for(int i =0;i<files.length;i++) {
-				setProgress((int)(100f/(float)files.length * i));
-				
-				importInterface = FileHandler.determineInterface(files[i]);
-				if(importInterface==null)
-					continue;
-				
-				if(importInterface == FileHandler.IMAGE_INTERFACE){
-					if(! ignoreReprompt) {
-						final int index = i;
-						SwingUtilities.invokeAndWait(() -> settings = getTextureImportSettings(files[index]));
-						ignoreReprompt = papaOptions.ignoreReprompt(); 
-					}
-					if(settings==null)
-						continue;
-				}
-				
-				ImportInfo info = new ImportInfo();
-				info.setTextureSettings(settings);
-				info.setActivityListener(new ActivityListener() {
-					@Override
-					public void onFoundAcceptableFile(File f, int currentTotal) {
-						ribbonPanel.setNumberOfFoundFiles(currentTotal);
-					}
-					@Override
-					public void onGotTotalFiles(int totalFiles) {
-						ribbonPanel.startImport(totalFiles);
-						totalSubFiles = totalFiles;
-						if(totalSubFiles>=50) {
-							optimize = true; // reloading the tree is expensive
-							optimizeFactor = Math.min((int) ((totalSubFiles+100) / 50), 8); // min 3 files per reload, max 8
-						}
-					}
-					@Override
-					public void onEndProcessFile(File f, String threadName, boolean success) {
-						int count = processedFiles.getAndAdd(1);
-						subProgress = (float) count/ totalSubFiles;
-						ribbonPanel.setNumberProcessedFiles(count);
-					}
-					@Override
-					public void onRejectFile(File f, String reason) {}
-					@Override
-					public void onAcceptFile(PapaFile p) {
-						publish(p);
-					}
-				});
-				boolean wait = importInterface == FileHandler.IMAGE_INTERFACE || i == files.length-1;
-				ribbonPanel.setNumberOfFoundFiles(0);
-				FileHandler.readFiles(files[i], importInterface, info, true, wait);
-				// TODO this is a bit of a band aid solution. Currently the file handler has no information on the progress of an import.
-				// FileHandler must encapsulate the import into a class for better info. (this will also allow for >1 import at a time)
-				if(wait)
-					ribbonPanel.endImport();
-			}
-			
-			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(false));
-			papaOptions.setMultiMode(false);
-			System.out.println("Time: "+(double)(System.nanoTime()-time)/1000000d+" ms");
-			return null;
-		}
-		
-		@Override
-		protected void process(List<PapaFile> chunks) {
-			if(chunks.size()!=0) {
-				for(PapaFile p : chunks)
-					configSelector.addToTreeOrSelect(p,!optimize || optimizeCounter++%optimizeFactor==0 || optimizeCounter == totalSubFiles);
-			}
-		}
-		
-		@Override
-		protected void done() {
-			try {
-				get();
-			} catch (Exception e) {
-				if(e.getClass()!=CancellationException.class)
-					throw new RuntimeException(e);
-			}
-		}
-	}
-	
-	private class ImageFileWorker extends FileWorker {
-		private Image image;
-		public ImageFileWorker(Image image) {
-			this.image = image;
-			papaOptions.setMultiMode(false);
-		}
-		
-		@Override
-		protected Void doInBackground() throws Exception {
-			long time = System.nanoTime();
-			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(true));
-			
-			SwingUtilities.invokeAndWait(() -> settings = getTextureImportSettings(null));
-			
-			if(settings!=null) {
-				
-				ImportInfo info = new ImportInfo();
-				info.setTextureSettings(settings);
-				info.setInternalMode(true);
-				info.setActivityListener(new ActivityListener() {
-					@Override
-					public void onRejectFile(File f, String reason) {}
-					@Override
-					public void onAcceptFile(PapaFile p) {
-						p.setFileLocation(null);
-						publish(p);
-					}
-				});
-				
-				File f = File.createTempFile("PTexEditImport", ".png");
-				ImageIO.write((RenderedImage) image, "png", f);
-				try {
-					FileHandler.readFiles(f, FileHandler.IMAGE_INTERFACE, info, false, true);
-				} finally {
-					f.delete();
-				}
-				
-				if(info.getNumAcceptedFiles()==0)
-					showError("Unable to paste image: " + info.getRejectedFileReasons()[0], "Paste error", new Object[] {"Ok"}, "Ok");
-			}
-			
-			SwingUtilities.invokeLater(() -> APPLICATION_WINDOW.setReadingFiles(false));
-			System.out.println("Time: "+(double)(System.nanoTime()-time)/1000000d+" ms");
-			return null;
-		}
-	}
-	
-	public synchronized void startOperation() {
-		setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-		loadCounter++;
-	}
-	
-	public synchronized void endOperation() {
-		loadCounter--;
-		if(loadCounter==0)
-			setCursor(Cursor.getDefaultCursor());
-	}
-	
-	public void readAll(File...files) {
-		FileWorker fw = new FileWorker(files);
-		fw.execute();
-	}
-	
-	public void readImage(Image image) {
-		FileWorker fw = new ImageFileWorker(image);
-		fw.execute();
-	}
-	
-	private void setReadingFiles(boolean b) {
-		if(b && ! menu.readingFiles)
-			startOperation();
-		else if(!b && menu.readingFiles)
-			endOperation();
-		menu.setReadingFiles(b);
-		boolean enable = !b;
-		imagePanel.dragDropEnabled = enable;
-	}
-
-	public ImmutableTextureSettings getTextureImportSettings(File f) {
-		papaOptions.setActiveFile(f);
-		papaOptions.updateLinkOptions(getTargetablePapaFiles());
-		papaOptions.showAt(getX() + getWidth() / 2, getY() + getHeight() / 2); // this blocks code execution at this point. neat!
-		if(papaOptions.getWasAccepted())
-			return papaOptions.getCurrentSettings();
-		return null;
-	}
-	
-	public void setActiveFile(PapaFile p) {
-		if(p==null) {
-			unloadFileFromConfig();
-			return;
-		}
-		PapaFile old = activeFile;
-		activeFile = p;
-		int index = Math.max(0, configSection1.getActiveTextureIndex(activeFile));
-		activeTexture = activeFile.getNumTextures()!=0 ? activeFile.getTexture(index) : null;
-		
-		boolean changed = old!=activeFile;
-		menu.applySettings(activeFile, index, activeTexture ,changed);
-		configSection1.applySettings(activeFile, index, activeTexture ,changed);
-		configSection2.applySettings(activeFile, index, activeTexture ,changed);
-		configSelector.applySettings(activeFile, index, activeTexture ,changed);
-	}
-	
-	/*private void refreshActiveFile() {
-		setActiveFile(activeFile);
-		configSelector.selectedNodeChanged();
-	}*/
-	
-	public void setActiveTexture(PapaTexture p) {
-		activeTexture = p;
-		setActiveFile(p.getParent());
-	}
-	
-	public void unloadFileFromConfig() {
-		activeFile = null;
-		activeTexture = null;
-		dependents.clear();
-		dependencies.clear();
-		menu.unload();
-		configSection1.unload();
-		configSection2.unload();
-		configSelector.unload();
-		imagePanel.unload();
-		configSelector.fileTree.repaint();
-	}
-	
-	private PapaFile[] getTargetablePapaFiles() {
-		return configSelector.getTargetablePapaFiles();
-	}
-
 	public Editor() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
@@ -633,6 +197,305 @@ public class Editor extends JFrame {
 		clipboardOwner = new ClipboardListener();
 	}
 	
+	public final Thread onExit = new Thread(new Runnable() {
+		
+		public void run() {
+			if(!Main.settingsFile.exists())
+				return;
+			
+			Properties prop = Main.prop;
+			
+			int state = Editor.this.getExtendedState();
+			if(state!=JFrame.MAXIMIZED_BOTH && state!=JFrame.MAXIMIZED_HORIZ && state!=JFrame.MAXIMIZED_VERT) {
+				prop.setProperty("Application.Location.X", 			""+(int)getX());
+				prop.setProperty("Application.Location.Y", 			""+(int)getY());
+				prop.setProperty("Application.Size.Width",			""+(int)getWidth());
+				prop.setProperty("Application.Size.Height", 		""+(int)getHeight());
+			}
+			prop.setProperty("Application.SplitPane.Location", 				""+(int)mainPanel.getDividerLocation());
+			prop.setProperty("Application.State", 							""+getExtendedState());
+			prop.setProperty("Application.Menu.View.Channels", 				""+menu.getSelectedRadioButton());
+			prop.setProperty("Application.Menu.View.Luminance", 			""+menu.mViewLuminance.isSelected());
+			prop.setProperty("Application.Menu.View.Alpha", 				""+menu.mViewNoAlpha.isSelected());
+			prop.setProperty("Application.Menu.View.Tile", 					""+menu.mViewTile.isSelected());
+			prop.setProperty("Application.Menu.View.DXT", 					""+menu.mViewDXT.isSelected());
+			prop.setProperty("Application.Menu.Options.ShowRoot",			""+menu.mOptionsShowRoot.isSelected());
+			prop.setProperty("Application.Menu.Options.AllowEmpty",			""+menu.mOptionsAllowEmpty.isSelected());
+			prop.setProperty("Application.Menu.Options.SuppressWarnings",	""+menu.mOptionsSuppressWarnings.isSelected());
+			//prop.setProperty("Application.Config.MaxThreads", 	""+e.maxThreads);
+			
+			ImmutableTextureSettings settings = papaOptions.getCurrentSettings();
+			
+			prop.setProperty("PapaOptions.Format", 				""+settings.format);
+			prop.setProperty("PapaOptions.DxtMethod", 			""+settings.method);
+			prop.setProperty("PapaOptions.GenMipmaps", 			""+settings.generateMipmaps);
+			prop.setProperty("PapaOptions.MipmapResizeMethod", 	""+settings.mipmapResizeMethod);
+			prop.setProperty("PapaOptions.SRGB", 				""+settings.SRGB);
+			prop.setProperty("PapaOptions.Resize", 				""+settings.resize);
+			prop.setProperty("PapaOptions.ResizeMethod", 		""+settings.resizeMethod);
+			prop.setProperty("PapaOptions.ResizeMode", 			""+settings.resizeMode);
+			
+			BatchConvert b = batchConvert;
+			prop.setProperty("BatchConvert.Recursive", 			""+b.isRecursive());
+			prop.setProperty("BatchConvert.WriteLinked", 		""+b.isWritingLinkedFiles());
+			prop.setProperty("BatchConvert.Overwrite", 			""+b.isOverwrite());
+			prop.setProperty("BatchConvert.IgnoreHierarchy", 	""+b.isIgnoreHierarchy());
+			
+			if(PapaFile.getPlanetaryAnnihilationDirectory()!=null)
+				prop.setProperty("PapaFile.PADirectory", 			PapaFile.getPlanetaryAnnihilationDirectory().getAbsolutePath());
+			
+			try {
+				prop.store(new FileOutputStream(Main.settingsFile), null);
+			} catch (IOException e2) { e2.printStackTrace();}
+		}
+	});
+	
+	public FileHandler getFileHandler() {
+		if(this.fileHandler == null) {
+			fileHandler = new FileHandler(this);
+		}
+		return this.fileHandler;
+	}
+	
+	private class FileWorker extends SwingWorker<Void,PapaFile> {
+
+		private File[] files;
+		protected ImmutableTextureSettings settings = null;
+		protected ImportInterface importInterface = null;
+		private boolean ignoreReprompt = false;
+		private float subProgress = 0f;
+		private float totalSubFiles = 0f;
+		private AtomicInteger processedFiles = new AtomicInteger();
+		private boolean optimize = false;
+		private int optimizeCounter = 0, optimizeFactor=0;
+		
+		public FileWorker(File...files) {
+			this.files = files;
+			papaOptions.setMultiMode(files.length>1);
+		}
+		
+		public float getSubProgress() {
+			return subProgress;
+		}
+		
+		@Override
+		protected Void doInBackground() throws Exception {
+			long time = System.nanoTime();
+			SwingUtilities.invokeAndWait(() -> setReadingFiles(true));
+			processedFiles.set(0);
+			for(int i =0;i<files.length;i++) {
+				setProgress((int)(100f/(float)files.length * i));
+				
+				importInterface = getFileHandler().determineInterface(files[i]);
+				if(importInterface==null)
+					continue;
+				
+				if(importInterface == getFileHandler().IMAGE_INTERFACE){
+					if(! ignoreReprompt) {
+						final int index = i;
+						SwingUtilities.invokeAndWait(() -> settings = getTextureImportSettings(files[index]));
+						ignoreReprompt = papaOptions.ignoreReprompt(); 
+					}
+					if(settings==null)
+						continue;
+				}
+				
+				ImportInfo info = new ImportInfo();
+				info.setTextureSettings(settings);
+				info.setActivityListener(new ActivityListener() {
+					@Override
+					public void onFoundAcceptableFile(File f, int currentTotal) {
+						ribbonPanel.setNumberOfFoundFiles(currentTotal);
+					}
+					@Override
+					public void onGotTotalFiles(int totalFiles) {
+						ribbonPanel.startImport(totalFiles);
+						totalSubFiles = totalFiles;
+						if(totalSubFiles>=50) {
+							optimize = true; // reloading the tree is expensive
+							optimizeFactor = Math.min((int) ((totalSubFiles+100) / 50), 8); // min 3 files per reload, max 8
+						}
+					}
+					@Override
+					public void onEndProcessFile(File f, String threadName, boolean success) {
+						int count = processedFiles.getAndAdd(1);
+						subProgress = (float) count/ totalSubFiles;
+						ribbonPanel.setNumberProcessedFiles(count);
+					}
+					@Override
+					public void onRejectFile(File f, String reason) {}
+					@Override
+					public void onAcceptFile(PapaFile p) {
+						publish(p);
+					}
+				});
+				boolean wait = importInterface == getFileHandler().IMAGE_INTERFACE || i == files.length-1;
+				ribbonPanel.setNumberOfFoundFiles(0);
+				getFileHandler().readFiles(files[i], importInterface, info, true, wait);
+				// TODO this is a bit of a band aid solution. Currently the file handler has no information on the progress of an import.
+				// FileHandler must encapsulate the import into a class for better info. (this will also allow for >1 import at a time)
+				if(wait)
+					ribbonPanel.endImport();
+			}
+			
+			SwingUtilities.invokeLater(() -> setReadingFiles(false));
+			papaOptions.setMultiMode(false);
+			System.out.println("Time: "+(double)(System.nanoTime()-time)/1000000d+" ms");
+			return null;
+		}
+		
+		@Override
+		protected void process(List<PapaFile> chunks) {
+			if(chunks.size()!=0) {
+				for(PapaFile p : chunks)
+					configSelector.addToTreeOrSelect(p,!optimize || optimizeCounter++%optimizeFactor==0 || optimizeCounter == totalSubFiles);
+			}
+		}
+		
+		@Override
+		protected void done() {
+			try {
+				get();
+			} catch (Exception e) {
+				if(e.getClass()!=CancellationException.class)
+					throw new RuntimeException(e);
+			}
+		}
+	}
+	
+	private class ImageFileWorker extends FileWorker {
+		private Image image;
+		public ImageFileWorker(Image image) {
+			this.image = image;
+			papaOptions.setMultiMode(false);
+		}
+		
+		@Override
+		protected Void doInBackground() throws Exception {
+			long time = System.nanoTime();
+			SwingUtilities.invokeLater(() -> setReadingFiles(true));
+			
+			SwingUtilities.invokeAndWait(() -> settings = getTextureImportSettings(null));
+			
+			if(settings!=null) {
+				
+				ImportInfo info = new ImportInfo();
+				info.setTextureSettings(settings);
+				info.setInternalMode(true);
+				info.setActivityListener(new ActivityListener() {
+					@Override
+					public void onRejectFile(File f, String reason) {}
+					@Override
+					public void onAcceptFile(PapaFile p) {
+						p.setFileLocation(null);
+						publish(p);
+					}
+				});
+				
+				File f = File.createTempFile("PTexEditImport", ".png");
+				ImageIO.write((RenderedImage) image, "png", f);
+				try {
+					getFileHandler().readFiles(f, getFileHandler().IMAGE_INTERFACE, info, false, true);
+				} finally {
+					f.delete();
+				}
+				
+				if(info.getNumAcceptedFiles()==0)
+					showError("Unable to paste image: " + info.getRejectedFileReasons()[0], "Paste error", new Object[] {"Ok"}, "Ok");
+			}
+			
+			SwingUtilities.invokeLater(() -> setReadingFiles(false));
+			System.out.println("Time: "+(double)(System.nanoTime()-time)/1000000d+" ms");
+			return null;
+		}
+	}
+	
+	public synchronized void startOperation() {
+		setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		loadCounter++;
+	}
+	
+	public synchronized void endOperation() {
+		loadCounter--;
+		if(loadCounter==0)
+			setCursor(Cursor.getDefaultCursor());
+	}
+	
+	public void readAll(File...files) {
+		FileWorker fw = new FileWorker(files);
+		fw.execute();
+	}
+	
+	public void readImage(Image image) {
+		FileWorker fw = new ImageFileWorker(image);
+		fw.execute();
+	}
+	
+	private void setReadingFiles(boolean b) {
+		if(b && ! menu.readingFiles)
+			startOperation();
+		else if(!b && menu.readingFiles)
+			endOperation();
+		menu.setReadingFiles(b);
+		boolean enable = !b;
+		imagePanel.dragDropEnabled = enable;
+	}
+
+	public ImmutableTextureSettings getTextureImportSettings(File f) {
+		papaOptions.setActiveFile(f);
+		papaOptions.updateLinkOptions(getTargetablePapaFiles());
+		papaOptions.showAt(getX() + getWidth() / 2, getY() + getHeight() / 2); // this blocks code execution at this point. neat!
+		if(papaOptions.getWasAccepted())
+			return papaOptions.getCurrentSettings();
+		return null;
+	}
+	
+	public void setActiveFile(PapaFile p) {
+		if(p==null) {
+			unloadFileFromConfig();
+			return;
+		}
+		PapaFile old = activeFile;
+		activeFile = p;
+		int index = Math.max(0, configSection1.getActiveTextureIndex(activeFile));
+		activeTexture = activeFile.getNumTextures()!=0 ? activeFile.getTexture(index) : null;
+		
+		boolean changed = old!=activeFile;
+		menu.applySettings(activeFile, index, activeTexture ,changed);
+		configSection1.applySettings(activeFile, index, activeTexture ,changed);
+		configSection2.applySettings(activeFile, index, activeTexture ,changed);
+		configSelector.applySettings(activeFile, index, activeTexture ,changed);
+	}
+	
+	/*private void refreshActiveFile() {
+		setActiveFile(activeFile);
+		configSelector.selectedNodeChanged();
+	}*/
+	
+	public void setActiveTexture(PapaTexture p) {
+		activeTexture = p;
+		setActiveFile(p.getParent());
+	}
+	
+	public void unloadFileFromConfig() {
+		activeFile = null;
+		activeTexture = null;
+		dependents.clear();
+		dependencies.clear();
+		menu.unload();
+		configSection1.unload();
+		configSection2.unload();
+		configSelector.unload();
+		imagePanel.unload();
+		configSelector.fileTree.repaint();
+	}
+	
+	private PapaFile[] getTargetablePapaFiles() {
+		return configSelector.getTargetablePapaFiles();
+	}
+
+	
+	
 	
 	
 	private class ClipboardListener implements ClipboardOwner {
@@ -642,19 +505,50 @@ public class Editor extends JFrame {
 		}
 	}
 	
-	public static int showError(Object message, String title, Object[] options, Object Default) {
+	public int showError(Object message, String title, Object[] options, Object Default) {
 		exclamationSound();
 		System.err.println(message);
-		return JOptionPane.showOptionDialog(APPLICATION_WINDOW, message,
+		return JOptionPane.showOptionDialog(this, message,
 	             title, JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE,
 	             null, options, Default);
 	}
 	
-	public static int optionBox(Object message, String title, Object[] options, Object Default) {
-		return JOptionPane.showOptionDialog(APPLICATION_WINDOW, message,
+	public int optionBox(Object message, String title, Object[] options, Object Default) {
+		return JOptionPane.showOptionDialog(this, message,
 	             title, JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
 	             null, options, Default);
 	}
+	
+	public final UncaughtExceptionHandler onThreadException = new UncaughtExceptionHandler() {
+		@Override
+		public void uncaughtException(Thread t, Throwable e) {
+			Thread.setDefaultUncaughtExceptionHandler(null); // prevent other errors from cascading if total failure
+			getFileHandler().cancelActiveTask();
+			String message = "Fatal error in thread "+t.getName()+":\n"+e.getClass().getName()+": "+e.getMessage()+"\n";
+			Throwable cause = e;
+			for(StackTraceElement element : e.getStackTrace())
+				message+="\n"+element.toString();
+			while(cause.getCause()!=null) {
+				cause = cause.getCause();
+				message+="\n\nCaused by:\n"+cause.getClass().getName()+": "+cause.getMessage()+"\n";
+				for(StackTraceElement element : cause.getStackTrace())
+					message+="\n"+element.toString();
+			}
+			
+			
+			JTextArea jte = new JTextArea();
+			jte.setEditable(false);
+			jte.setText(message);
+			jte.setCaretPosition(0);
+			
+			JScrollPane jsp = new JScrollPane(jte,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+			jsp.setPreferredSize(new Dimension(650,350));
+			
+			showError(jsp, "Fatal Error", new Object[] {"Exit"}, "Exit");
+			System.err.println(message);
+			System.exit(-1);
+		}
+	};
 		
 	public static void exclamationSound() {
 		Toolkit.getDefaultToolkit().beep();
