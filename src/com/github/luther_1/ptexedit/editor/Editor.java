@@ -53,15 +53,15 @@ public class Editor extends JFrame {
 	public 	static boolean SUPPRESS_WARNINGS = false;
 	private static final long serialVersionUID = 894467903207605180L;
 	private static final String APPLICATION_NAME = "PTexEdit";
-	private static final String VERSION_STRING = "0.3";
-	private static final String BUILD_DATE = "August 1, 2020";
+	public static final String VERSION_STRING = "0.3";
+	public static final String BUILD_DATE = "August 1, 2020";
 	private static final File settingsFile = new File(System.getProperty("user.home") + 
 						File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
-	private static Editor APPLICATION_WINDOW;
+	public static Editor APPLICATION_WINDOW;
 	public static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
 	private static final BufferedImage icon = loadImageFromResources("icon.png");
 	private static final BufferedImage iconSmall = loadImageFromResources("iconSmall.png");
-	private static final ImageIcon imageIcon = new ImageIcon(icon);
+	public static final ImageIcon imageIcon = new ImageIcon(icon);
 	private static final ImageIcon imgPapafile = loadIconFromResources("papafile.png");
 	private static final ImageIcon imgPapafileImage = loadIconFromResources("papafileImage.png");
 	private static final ImageIcon imgPapafileLinked = loadIconFromResources("papafileLinked.png");
@@ -76,14 +76,14 @@ public class Editor extends JFrame {
 	//private static int maxThreads;
 	private JPanel contentPane;
 	
-	private PapaFile activeFile = null;
-	private PapaTexture activeTexture = null;
+	public PapaFile activeFile = null;
+	public PapaTexture activeTexture = null;
 	private Set<PapaComponent> dependencies = Collections.newSetFromMap(new IdentityHashMap<>()), dependents = Collections.newSetFromMap(new IdentityHashMap<>());
 	
 	public ImagePanel imagePanel;
 	private ConfigPanelTop configSection1;
 	private ConfigPanelBottom configSection2;
-	private ConfigPanelSelector configSelector;
+	public ConfigPanelSelector configSelector;
 	public RibbonPanel ribbonPanel;
 	 
 	public ClipboardListener clipboardOwner;
@@ -96,7 +96,7 @@ public class Editor extends JFrame {
 	private MenuBar menu;
 	
 	private PapaOptions papaOptions;
-	private BatchConvert batchConvert;
+	public BatchConvert batchConvert;
 	
 	private int loadCounter = 0;
 	
@@ -466,12 +466,12 @@ public class Editor extends JFrame {
 		}
 	}
 	
-	private synchronized void startOperation() {
+	public synchronized void startOperation() {
 		setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 		loadCounter++;
 	}
 	
-	private synchronized void endOperation() {
+	public synchronized void endOperation() {
 		loadCounter--;
 		if(loadCounter==0)
 			setCursor(Cursor.getDefaultCursor());
@@ -482,7 +482,7 @@ public class Editor extends JFrame {
 		fw.execute();
 	}
 	
-	private void readImage(Image image) {
+	public void readImage(Image image) {
 		FileWorker fw = new ImageFileWorker(image);
 		fw.execute();
 	}
@@ -497,7 +497,7 @@ public class Editor extends JFrame {
 		imagePanel.dragDropEnabled = enable;
 	}
 
-	private ImmutableTextureSettings getTextureImportSettings(File f) {
+	public ImmutableTextureSettings getTextureImportSettings(File f) {
 		papaOptions.setActiveFile(f);
 		papaOptions.updateLinkOptions(getTargetablePapaFiles());
 		papaOptions.showAt(getX() + getWidth() / 2, getY() + getHeight() / 2); // this blocks code execution at this point. neat!
@@ -506,7 +506,7 @@ public class Editor extends JFrame {
 		return null;
 	}
 	
-	private void setActiveFile(PapaFile p) {
+	public void setActiveFile(PapaFile p) {
 		if(p==null) {
 			unloadFileFromConfig();
 			return;
@@ -560,7 +560,7 @@ public class Editor extends JFrame {
 		SpringLayout contentPaneLayout = new SpringLayout();
 		contentPane.setLayout(contentPaneLayout);
 		
-		menu = new MenuBar();
+		menu = new MenuBar(this);
 		setJMenuBar(menu);
 		
 		ribbonPanel = new RibbonPanel(this); // TODO
@@ -666,558 +666,7 @@ public class Editor extends JFrame {
 		clipboardOwner = new ClipboardListener();
 	}
 	
-	private class MenuBar extends JMenuBar {
-		
-		private static final long serialVersionUID = 275294845979597235L;
-
-		private ButtonGroup mViewChannelItems;
-		private JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mViewDXT, mOptionsShowRoot, mOptionsAllowEmpty, mOptionsSuppressWarnings;
-		private JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
-		private JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mToolsReloadLinked,
-							mEditCopy, mEditPaste;
-		private boolean clipboardHasImage, readingFiles;
-		
-		public int getSelectedRadioButton() { // I hate ButtonGroup.
-			Enumeration<AbstractButton> i = mViewChannelItems.getElements();
-			int j=0;
-			while(i.hasMoreElements()) {
-				if(i.nextElement().isSelected())
-					return j;
-				j++;
-			}
-			return 0;
-		}
-		
-		public void setReadingFiles(boolean b) {
-			boolean enable = !b;
-			readingFiles = b;
-			mFileImport.setEnabled(enable);
-			mFileOpen.setEnabled(enable);
-			mToolsConvertFolder.setEnabled(enable);
-			mEditPaste.setEnabled(enable && clipboardHasImage);
-		}
-
-		public void unload() {
-			mFileSave.setEnabled(false);
-			mFileSaveAs.setEnabled(false);
-			mFileExport.setEnabled(false);
-			mEditCopy.setEnabled(false);
-			mToolsShowInFileBrowser.setEnabled(false);
-			mToolsReloadLinked.setEnabled(false);
-		}
-
-		public void applySettings(PapaFile activeFile, int index, PapaTexture tex, boolean same) {
-			boolean hasTextures = !(activeFile.getNumTextures() == 0 || tex == null);
-			boolean linkValid = hasTextures && (!tex.isLinked() || tex.linkValid());
-			mFileSave.setEnabled(true);
-			mFileSaveAs.setEnabled(true);
-			mToolsShowInFileBrowser.setEnabled(activeFile.getFile()!=null && activeFile.getFile().exists());
-			
-			mFileExport.setEnabled(hasTextures && linkValid);
-			mEditCopy.setEnabled(hasTextures && linkValid);
-			mToolsReloadLinked.setEnabled(hasTextures && activeFile!=null);
-		}
-
-		public void setSelectedRadioButton(int index) {
-			Enumeration<AbstractButton> i = mViewChannelItems.getElements();
-			int j=0;
-			AbstractButton a;
-			while(i.hasMoreElements()) {
-				a=i.nextElement();
-				if(j++==index) {
-					a.doClick(0);
-					return;
-				}
-			}
-		}
-		
-		private void saveFile(PapaFile target) {
-			if( ! target.isPapaFile()) {
-				saveFileAs(target);
-				return;
-			}
-			
-			startOperation();
-			try {
-				FileHandler.writeFile(target,target.getFile());
-				configSelector.selectedPapaFileNodeChanged();
-			} catch (IOException e1) {
-				showError(e1.getMessage(), "Save", new Object[] {"Ok"}, "Ok");
-			}
-			endOperation();
-		}
-		
-		private void saveFileAs(PapaFile target) {
-			JFileChooser j = new JFileChooser();
-			
-			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
-			j.setDialogTitle("Save Papa File");
-			j.setFileFilter(FileHandler.getPapaFilter());
-			if(target.getFile()!=null) {
-				if(!target.getFile().exists())
-					j.setCurrentDirectory(getLowestExistingDirectory(target.getFile()));
-				j.setSelectedFile(FileHandler.replaceExtension(target.getFile(), FileHandler.getPapaFilter()));
-			}
-			startOperation();
-			if (j.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-				try {
-					FileHandler.saveFileTo(target, j.getSelectedFile());
-				} catch (IOException e1) {
-					showError(e1.getMessage(), "Save As...", new Object[] {"Ok"}, "Ok");
-				}
-				configSelector.selectedPapaFileNodeChanged();
-			}
-			endOperation();
-		}
-		
-		private File getLowestExistingDirectory(File file) {
-			while(file!=null && !file.exists()) {
-				file = file.getParentFile();
-			}
-			return file;
-		}
-
-		private void clipboardChanged() {
-			try {
-				for(DataFlavor flavor : clipboard.getAvailableDataFlavors())
-					if(flavor.equals(DataFlavor.imageFlavor)) {
-						clipboardHasImage = true;
-						return;
-					}
-			} catch (IllegalStateException e) {
-				clipboardHasImage = true; // rely on future checks if we can't determine right now
-				return;
-			}
-			clipboardHasImage = false;
-		}
-		
-		public void changeMediaDirectory() {
-			JFileChooser j = new JFileChooser();
-			j.setDialogTitle("Set Media Directory");
-			
-			j.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-			if(PapaFile.getPlanetaryAnnihilationDirectory() != null)
-				j.setSelectedFile(PapaFile.getPlanetaryAnnihilationDirectory());
-			
-			if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-				File file = j.getSelectedFile();
-				if(file.listFiles((File dir, String name)-> name.equals("pa")).length==0 && 
-					Editor.optionBox("The selected directory does not include the /pa subdirectory.\n Are you sure this is the correct directory?",
-									"Confirm Directory", new Object[] {"Yes","Cancel"}, "Cancel") != 0) {
-						return;
-				}
-				PapaFile.setPADirectory(file);
-				
-			}
-		}
-		
-		public MenuBar() {
-			JMenu mFile = new JMenu("File");
-			mFile.setMnemonic('f');
-			add(mFile);
-			
-			mFileOpen = new JMenuItem("Open");
-			mFileOpen.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_MASK));
-			mFile.add(mFileOpen);
-			mFileOpen.setMnemonic('o');
-			
-			mFileOpen.addActionListener((ActionEvent e) -> {
-				JFileChooser j = new JFileChooser();
-				
-				j.setFileSelectionMode(JFileChooser.FILES_ONLY);
-				j.setAcceptAllFileFilterUsed(false);
-				j.setFileFilter(FileHandler.getPapaFilter());
-				if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-					File file = j.getSelectedFile();
-					readAll(file);
-				}
-			});
-			
-			JSeparator separator_1 = new JSeparator();
-			mFile.add(separator_1);
-			
-			mFileSave = new JMenuItem("Save");
-			mFileSave.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK));
-			mFile.add(mFileSave);
-			mFileSave.setMnemonic('s');
-			mFileSave.setEnabled(false);
-			mFileSave.addActionListener((ActionEvent e) -> {
-				saveFile(activeFile);
-			});
-			
-			mFileSaveAs = new JMenuItem("Save As...");
-			mFileSaveAs.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mFile.add(mFileSaveAs);
-			mFileSaveAs.setMnemonic('A');
-			mFileSaveAs.setEnabled(false);
-			mFileSaveAs.addActionListener((ActionEvent e) -> {
-				saveFileAs(activeFile);
-			});
-			
-			JSeparator separator = new JSeparator();
-			mFile.add(separator);
-			
-			mFileImport = new JMenuItem("Import");
-			mFileImport.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, InputEvent.CTRL_MASK));
-			mFile.add(mFileImport);
-			mFileImport.setMnemonic('i');
-			mFileImport.addActionListener((ActionEvent e) -> { // this is identical to mFileOpen and just changes the accepted file types. Fight me.
-				JFileChooser j = new JFileChooser();
-				
-				j.setFileSelectionMode(JFileChooser.FILES_ONLY);
-				j.setAcceptAllFileFilterUsed(false);
-				j.setDialogTitle("Import File");
-				
-				for(FileNameExtensionFilter f : FileHandler.getImageFilters())
-					j.addChoosableFileFilter(f);
-				
-				if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-					File file = j.getSelectedFile();
-					readAll(file);
-				}
-			});
-			
-			mFileExport = new JMenuItem("Export");
-			mFileExport.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_MASK));
-			mFile.add(mFileExport);
-			mFileExport.setMnemonic('e');
-			mFileExport.setEnabled(false);
-			mFileExport.addActionListener((ActionEvent e) -> {
-				
-				JFileChooser j = new JFileChooser();
-				
-				j.setFileSelectionMode(JFileChooser.FILES_ONLY);
-				j.setAcceptAllFileFilterUsed(false);
-				j.setDialogTitle("Export File");
-				for(FileNameExtensionFilter f : FileHandler.getImageFilters())
-					j.addChoosableFileFilter(f);
-				
-				j.setFileFilter(FileHandler.getImageFilter("png"));
-				
-				if(activeFile.getFile()!=null) {
-					if(activeFile.getFile().exists())
-						j.setSelectedFile(FileHandler.replaceExtension(activeFile.getFile(), FileHandler.getImageFilter("png")));
-					else
-						j.setCurrentDirectory(getLowestExistingDirectory(activeFile.getFile()));
-				}
-				
-				PapaTexture tex = activeTexture;
-				if(tex.isLinked() && tex.linkValid())
-					tex = tex.getLinkedTexture();
-				
-				startOperation();
-				if (j.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
-					try {
-						FileHandler.exportImageTo(tex, j.getSelectedFile(), (FileNameExtensionFilter)j.getFileFilter());
-					} catch (IOException e1) {
-						showError(e1.getMessage(), "Export Error", new Object[] {"Ok"}, "Ok");
-					}
-				endOperation();
-			});
-			
-			JSeparator separator_2 = new JSeparator();
-			mFile.add(separator_2);
-			
-			JMenuItem mFileExit = new JMenuItem("Exit");
-			mFileExit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, InputEvent.ALT_MASK));
-			mFile.add(mFileExit);
-			mFileExit.setMnemonic('x');
-			
-			mFileExit.addActionListener((ActionEvent e) -> {
-				System.exit(0);
-			});
-			
-			JMenu mEdit = new JMenu("Edit");
-			mEdit.setMnemonic('e');
-			add(mEdit);
-			
-			mEditCopy = new JMenuItem("Copy");
-			mEditCopy.setMnemonic('c');
-			mEditCopy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mEditCopy.setEnabled(false);
-			mEdit.add(mEditCopy);
-			mEditCopy.addActionListener((ActionEvent e)-> {
-				transferToClipboard(imagePanel.getFullImage());
-			});
-			
-			mEditPaste = new JMenuItem("Paste");
-			mEditPaste.setMnemonic('p');
-			mEditPaste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mEdit.add(mEditPaste);
-			mEditPaste.addActionListener((ActionEvent e)-> {
-				Image i = getImageFromClipboard();
-				if(i==null) {
-					showError("Clipboard does not contain an image.", "Invalid input", new Object[] {"Ok"}, "Ok");
-					return;
-				}
-				readImage(i);
-			});
-			
-			clipboard.addFlavorListener(new FlavorListener() {
-				@Override
-				public void flavorsChanged(FlavorEvent e) {
-					clipboardChanged();
-					mEditPaste.setEnabled(clipboardHasImage && ! readingFiles);
-				}
-			});
-			clipboardChanged();
-			mEditPaste.setEnabled(clipboardHasImage);
-			
-			JMenu mView = new JMenu("View");
-			mView.setMnemonic('v');
-			add(mView);
-			
-			
-			JMenu mViewChannel = new JMenu("Channels");
-			mView.add(mViewChannel);
-			mViewChannel.setMnemonic('C');
-			
-			mViewChannelItems = new ButtonGroup();
-			
-			mViewChannelRGB = new JRadioButtonMenuItem("RGB",true);
-			mViewChannelRGB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewChannel.add(mViewChannelRGB);
-			mViewChannelItems.add(mViewChannelRGB);
-			mViewChannelRGB.addActionListener((ActionEvent e) -> {
-				if(mViewChannelRGB.isSelected())
-					imagePanel.setMode(ImagePanel.RGBA);
-			});
-			
-			mViewChannelR = new JRadioButtonMenuItem("R");
-			mViewChannelR.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewChannel.add(mViewChannelR);
-			mViewChannelItems.add(mViewChannelR);
-			mViewChannelR.addActionListener((ActionEvent e) -> {
-				if(mViewChannelR.isSelected())
-					imagePanel.setMode(ImagePanel.RED);
-			});
-			
-			
-			mViewChannelG = new JRadioButtonMenuItem("G");
-			mViewChannelG.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewChannel.add(mViewChannelG);
-			mViewChannelItems.add(mViewChannelG);
-			mViewChannelG.addActionListener((ActionEvent e) -> {
-				if(mViewChannelG.isSelected())
-					imagePanel.setMode(ImagePanel.GREEN);
-			});
-			
-			
-			mViewChannelB = new JRadioButtonMenuItem("B");
-			mViewChannelB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewChannel.add(mViewChannelB);
-			mViewChannelItems.add(mViewChannelB);
-			mViewChannelB.addActionListener((ActionEvent e) -> {
-				if(mViewChannelB.isSelected())
-					imagePanel.setMode(ImagePanel.BLUE);
-			});
-			
-			
-			mViewChannelA = new JRadioButtonMenuItem("A");
-			mViewChannelA.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewChannel.add(mViewChannelA);
-			mViewChannelItems.add(mViewChannelA);
-			mViewChannelA.addActionListener((ActionEvent e) -> {
-				if(mViewChannelA.isSelected())
-					imagePanel.setMode(ImagePanel.ALPHA);
-			});
-			
-			
-			mViewLuminance = new JCheckBoxMenuItem("Luminance");
-			mViewLuminance.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewLuminance.setMnemonic('l');
-			mView.add(mViewLuminance);
-			mViewLuminance.addActionListener((ActionEvent e) -> {
-					imagePanel.setLuminance(mViewLuminance.isSelected());
-			});
-			
-			
-			mViewNoAlpha = new JCheckBoxMenuItem("Ignore Alpha");
-			mViewNoAlpha.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewNoAlpha.setMnemonic('i');
-			mView.add(mViewNoAlpha);
-			mViewNoAlpha.addActionListener((ActionEvent e) -> {
-				imagePanel.setIgnoreAlpha(mViewNoAlpha.isSelected());
-			});
-			
-			
-			mViewTile = new JCheckBoxMenuItem("Tile");
-			mViewTile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewTile.setMnemonic('t');
-			mView.add(mViewTile);
-			mViewTile.addActionListener((ActionEvent e) -> {
-				imagePanel.setTile(mViewTile.isSelected());
-			});
-			
-			mView.add(new JSeparator());
-			
-			mViewDXT = new JCheckBoxMenuItem("DXT Grid");
-			mViewDXT.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-			mViewDXT.setMnemonic('d');
-			mView.add(mViewDXT);
-			mViewDXT.addActionListener((ActionEvent e) -> {
-				imagePanel.showDXT(mViewDXT.isSelected());
-			});
-			
-			
-			JMenu mTools = new JMenu("Tools");
-			mTools.setMnemonic('t');
-			add(mTools);
-			
-			mToolsConvertFolder = new JMenuItem("Convert Folder");
-			mToolsConvertFolder.setMnemonic('c');
-			mTools.add(mToolsConvertFolder);
-			mToolsConvertFolder.addActionListener((ActionEvent e) -> {
-				batchConvert.showAt(APPLICATION_WINDOW.getX() + APPLICATION_WINDOW.getWidth() / 2, APPLICATION_WINDOW.getY() + APPLICATION_WINDOW.getHeight() / 2);
-			});
-			
-			mToolsShowInFileBrowser = new JMenuItem("Show in File Manager");
-			mToolsShowInFileBrowser.setEnabled(false);
-			mToolsShowInFileBrowser.setMnemonic('s');
-			boolean supported = Desktop.getDesktop().isSupported(Desktop.Action.OPEN);
-			if(supported)
-				mTools.add(mToolsShowInFileBrowser);
-			mToolsShowInFileBrowser.addActionListener((ActionEvent e) -> {
-				try {
-					File target = activeFile.getFile().getParentFile();
-					if(!target.exists())
-						throw new IOException("Directory does not exist");
-					Desktop.getDesktop().open(target);
-				} catch (Exception e1) {
-					showError("Failed to open file in file manager: "+e1.getMessage(), "Error", new Object[] {"Ok"}, "Ok");
-				}
-			});
-			
-			mTools.add(new JSeparator());
-			
-			mToolsReloadLinked = new JMenuItem("Reload Linked Files");
-			mToolsReloadLinked.setEnabled(false);
-			mToolsReloadLinked.setMnemonic('c');
-			mTools.add(mToolsReloadLinked);
-			mToolsReloadLinked.addActionListener((ActionEvent e) -> {
-				activeFile.reloadLinkedTextures();
-				configSelector.reloadTopLevelSelectedNode();
-				setActiveFile(activeFile);
-			});
-			
-			
-			//JMenuItem mToolsReload = new JMenuItem("Reload File"); TODO
-			//mTools.add(mToolsReload);
-			
-			JMenu mOptions = new JMenu("Options");
-			mOptions.setMnemonic('o');
-			add(mOptions);
-			
-			JMenuItem mOptionsSetDirectory = new JMenuItem("Set Media Directory...");
-			mOptionsSetDirectory.setToolTipText("This is the base directory that will be used when finding linked textures.");
-			mOptionsSetDirectory.setMnemonic('s');
-			mOptions.add(mOptionsSetDirectory);
-			mOptionsSetDirectory.addActionListener((ActionEvent e) -> {
-				changeMediaDirectory();
-			});
-			
-			JMenuItem mOptionsImageSettings = new JMenuItem("View Import Settings");
-			mOptions.add(mOptionsImageSettings);
-			mOptionsImageSettings.addActionListener((ActionEvent e) -> {
-				getTextureImportSettings(null);
-			});
-			mOptionsImageSettings.setMnemonic('v');
-			
-			JSeparator optionsSeparator = new JSeparator();
-			mOptions.add(optionsSeparator);
-			
-			//JMenuItem mOptionsCacheInfo = new JMenuItem("Remember Image Settings"); TODO
-			//mOptions.add(mOptionsCacheInfo);
-			
-			mOptionsShowRoot = new JCheckBoxMenuItem("Always Show Root");
-			mOptions.add(mOptionsShowRoot);
-			mOptionsShowRoot.addActionListener((ActionEvent e) -> {
-				configSelector.setAlwaysShowRoot(mOptionsShowRoot.isSelected());
-			});
-			mOptionsShowRoot.setMnemonic('a');
-			
-			mOptionsAllowEmpty = new JCheckBoxMenuItem("Allow Non-Image Files");
-			mOptions.add(mOptionsAllowEmpty);
-			mOptionsAllowEmpty.addActionListener((ActionEvent e) -> {
-				ALLOW_EMPTY_FILES = mOptionsAllowEmpty.isSelected();
-				if(!ALLOW_EMPTY_FILES)
-					configSelector.removeEmptyFiles();
-			});
-			mOptionsAllowEmpty.setMnemonic('n');
-			
-			mOptionsSuppressWarnings = new JCheckBoxMenuItem("Suppress Warnings");
-			mOptions.add(mOptionsSuppressWarnings);
-			mOptionsSuppressWarnings.addActionListener((ActionEvent e) -> {
-				SUPPRESS_WARNINGS = mOptionsSuppressWarnings.isSelected();
-			});
-			mOptionsSuppressWarnings.setMnemonic('s');
-			
-			JMenu mHelp = new JMenu("Help");
-			mHelp.setMnemonic('h');
-			add(mHelp);
-			
-			JMenuItem mHelpAbout = new JMenuItem("About");
-			mHelp.add(mHelpAbout);
-			mHelpAbout.addActionListener((ActionEvent e) -> {
-				JOptionPane.showMessageDialog(APPLICATION_WINDOW, "PTexEdit version: " + VERSION_STRING + "\n"
-						+ "Date: "+BUILD_DATE, "About PTexEdit", JOptionPane.INFORMATION_MESSAGE,imageIcon);
-			});
-			mHelpAbout.setMnemonic('a');
-		}
-		private Image getImageFromClipboard() {
-			try {
-				return (Image)clipboard.getData(DataFlavor.imageFlavor);
-			} catch (UnsupportedFlavorException | IllegalStateException e) {
-				return null;
-			} catch (IOException e) {
-				e.printStackTrace();
-				return null;
-			}
-		}
-
-		// https://coderanch.com/t/333565/java/BufferedImage-System-Clipboard
-		private void transferToClipboard(BufferedImage image) {
-			TransferableImage t = new TransferableImage(image);
-			try {
-				clipboard.setContents(t, clipboardOwner);
-			} catch (IllegalStateException e) {
-				showError("Failed to copy image to clipboad. Clipboard is unavailable.", "Copy error", new Object[] {"Ok"}, "Ok");
-			}
-		}
-		
-		private class TransferableImage implements Transferable {
-			Image image;
-			
-			public TransferableImage(Image image) {
-				this.image = image;
-			}
-			
-			@Override
-			public DataFlavor[] getTransferDataFlavors() {
-				return new DataFlavor[] {DataFlavor.imageFlavor};
-			}
-
-			@Override
-			public boolean isDataFlavorSupported(DataFlavor flavor) {
-				DataFlavor[] flavors = getTransferDataFlavors();
-				for(DataFlavor d : flavors)
-					if(d.equals(flavor))
-						return true;
-				return false;
-			}
-
-			@Override
-			public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException {
-				if(flavor.equals(DataFlavor.imageFlavor))
-					if(image!=null)
-						return image;
-					else
-						throw new IOException("Image is null");
-				throw new UnsupportedFlavorException(flavor);
-			}
-			
-		}
-	}
+	
 	
 	private class ClipboardListener implements ClipboardOwner {
 
@@ -1736,7 +1185,7 @@ public class Editor extends JFrame {
 		}
 	}
 	
-	private class ConfigPanelSelector extends JPanel {
+	public class ConfigPanelSelector extends JPanel {
 		
 		private static final long serialVersionUID = 2925995949876826577L;
 		private final DefaultMutableTreeNode root;
