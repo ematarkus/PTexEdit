@@ -124,7 +124,7 @@ public class PapaFile extends PapaComponent{
 	
 	static {
 		try {
-			DEFAULT.addTexture(ImageIO.read(PapaFile.class.getResource("/papafile/error.png")), 
+			DEFAULT.addTexture(ImageIO.read(PapaFile.class.getResource("/com/github/luther_1/ptexedit/resources/error.png")), 
 								new TextureSettings("R8G8B8A8",CompressionMethod.CLUSTER_FIT, false, 0, false, 0, 0, false,false,null,0).immutable());
 		} catch (Exception e) {
 			e.printStackTrace();
