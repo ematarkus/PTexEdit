@@ -75,7 +75,7 @@ public class Editor extends JFrame {
 	public MenuBar menu;
 	
 	public PapaOptions papaOptions;
-	public BatchConvert batchConvert;
+	public BatchConvertDialog batchConvert;
 	
 	private int loadCounter = 0;
 	
@@ -235,7 +235,7 @@ public class Editor extends JFrame {
 			prop.setProperty("PapaOptions.ResizeMethod", 		""+settings.resizeMethod);
 			prop.setProperty("PapaOptions.ResizeMode", 			""+settings.resizeMode);
 			
-			BatchConvert b = batchConvert;
+			BatchConvertDialog b = batchConvert;
 			prop.setProperty("BatchConvert.Recursive", 			""+b.isRecursive());
 			prop.setProperty("BatchConvert.WriteLinked", 		""+b.isWritingLinkedFiles());
 			prop.setProperty("BatchConvert.Overwrite", 			""+b.isOverwrite());

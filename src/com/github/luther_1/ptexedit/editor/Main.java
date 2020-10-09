@@ -97,7 +97,7 @@ public class Main {
 		PapaFile.setPADirectory(prop.getProperty("PapaFile.PADirectory",null)!=null ? new File(prop.getProperty("PapaFile.PADirectory")) : null);
 		
 		editor.papaOptions = new PapaOptions(editor, t.immutable());
-		editor.batchConvert = new BatchConvert(editor, editor.papaOptions);
+		editor.batchConvert = new BatchConvertDialog(editor, editor.papaOptions);
 		
 		editor.batchConvert.setRecursive(Boolean.valueOf(prop.getProperty("BatchConvert.Recursive", ""+true)));
 		editor.batchConvert.setWriteLinkedFiles(Boolean.valueOf(prop.getProperty("BatchConvert.WriteLinked", ""+false)));

@@ -42,7 +42,7 @@ import com.github.luther_1.ptexedit.editor.FileHandler.ImportInfo.ActivityListen
 import com.github.luther_1.ptexedit.papafile.*;
 import com.github.luther_1.ptexedit.papafile.PapaTexture.ImmutableTextureSettings;
 
-public class BatchConvert extends JDialog  {
+public class BatchConvertDialog extends JDialog  {
 
 	private static final long serialVersionUID = -6635278548154607017L;
 	
@@ -63,7 +63,7 @@ public class BatchConvert extends JDialog  {
 	
 	private final Editor editor;
 	
-	public BatchConvert(Editor editor, PapaOptions o) {
+	public BatchConvertDialog(Editor editor, PapaOptions o) {
 		super(editor);
 		this.editor = editor;
 		
