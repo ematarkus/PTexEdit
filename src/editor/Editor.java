@@ -38,7 +38,6 @@ import com.github.memo33.jsquish.Squish.CompressionMethod;
 
 import editor.FileHandler.*;
 import editor.FileHandler.ImportInfo.ActivityListener;
-import javafx.util.Pair;
 import papafile.*;
 import papafile.PapaTexture.*;
 
@@ -61,7 +60,7 @@ public class Editor extends JFrame {
 	private static final File settingsFile = new File(System.getProperty("user.home") + 
 						File.separatorChar+APPLICATION_NAME+File.separatorChar+APPLICATION_NAME+".properties");
 	private static Editor APPLICATION_WINDOW;
-	private static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
+	public static final BufferedImage checkerboard = loadImageFromResources("checkerboard64x64.png");
 	private static final BufferedImage icon = loadImageFromResources("icon.png");
 	private static final BufferedImage iconSmall = loadImageFromResources("iconSmall.png");
 	private static final ImageIcon imageIcon = new ImageIcon(icon);
@@ -71,11 +70,11 @@ public class Editor extends JFrame {
 	private static final ImageIcon imgPapafileError = loadIconFromResources("papafileError.png");
 	private static final ImageIcon imgPapafileNoLinks = loadIconFromResources("papafileNoLinks.png");
 	private static final ImageIcon imgPapaFileUnsaved = loadIconFromResources("papafileUnsaved.png");
-	private static final ImageIcon plusIcon = loadIconFromResources("plus.png");
-	private static final ImageIcon minusIcon = loadIconFromResources("minus.png");
+	public static final ImageIcon plusIcon = loadIconFromResources("plus.png");
+	public static final ImageIcon minusIcon = loadIconFromResources("minus.png");
 	private static final ImageIcon upArrowIcon = loadIconFromResources("upArrow.png");
 	private static final Properties prop = new Properties();
-	private static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+	public static final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 	//private static int maxThreads;
 	private JPanel contentPane;
 	
@@ -83,17 +82,18 @@ public class Editor extends JFrame {
 	private PapaTexture activeTexture = null;
 	private Set<PapaComponent> dependencies = Collections.newSetFromMap(new IdentityHashMap<>()), dependents = Collections.newSetFromMap(new IdentityHashMap<>());
 	
-	private ImagePanel imagePanel;
+	public ImagePanel imagePanel;
 	private ConfigPanelTop configSection1;
 	private ConfigPanelBottom configSection2;
 	private ConfigPanelSelector configSelector;
-	private RibbonPanel ribbonPanel;
+	public RibbonPanel ribbonPanel;
 	 
-	private ClipboardListener clipboardOwner;
+	public ClipboardListener clipboardOwner;
 	
 	private JPanel config, canvas;
 	private JSplitPane mainPanel;
-	private JScrollBar horizontal, vertical;
+	JScrollBar horizontal;
+	public JScrollBar vertical;
 	private JPanel box;
 	private MenuBar menu;
 	
@@ -479,7 +479,7 @@ public class Editor extends JFrame {
 			setCursor(Cursor.getDefaultCursor());
 	}
 	
-	private void readAll(File...files) {
+	public void readAll(File...files) {
 		FileWorker fw = new FileWorker(files);
 		fw.execute();
 	}
@@ -565,7 +565,7 @@ public class Editor extends JFrame {
 		menu = new MenuBar();
 		setJMenuBar(menu);
 		
-		ribbonPanel = new RibbonPanel();
+		ribbonPanel = new RibbonPanel(this); // TODO
 		contentPaneLayout.putConstraint(SpringLayout.WEST, ribbonPanel, 0, SpringLayout.WEST, contentPane);
 		contentPaneLayout.putConstraint(SpringLayout.NORTH, ribbonPanel, -25, SpringLayout.SOUTH, contentPane);
 		contentPaneLayout.putConstraint(SpringLayout.SOUTH, ribbonPanel, 0, SpringLayout.SOUTH, contentPane);
@@ -631,7 +631,7 @@ public class Editor extends JFrame {
 		vertical.addAdjustmentListener(scrollListener);
 		canvas.add(vertical);
 		
-		imagePanel = new ImagePanel();
+		imagePanel = new ImagePanel(this);
 		canvasLayout.putConstraint(SpringLayout.NORTH, imagePanel, 0, SpringLayout.NORTH, canvas);
 		canvasLayout.putConstraint(SpringLayout.WEST, imagePanel, 0, SpringLayout.WEST, canvas);
 		canvasLayout.putConstraint(SpringLayout.SOUTH, imagePanel, 0, SpringLayout.NORTH, box);
@@ -1230,300 +1230,7 @@ public class Editor extends JFrame {
 		
 	}
 	
-	private class RibbonPanel extends JPanel {
-		
-		private static final long serialVersionUID = 8964510055023743821L;
-		
-		private final int SLIDER_TICKS = 12;
-		private double zoomScale=1;
-		
-		private JSlider zoomSlider;
-		private JLabel zoomLabel, locationLabel,colourLabelRed,colourLabelGreen,colourLabelBlue,colourLabelAlpha, colourLabel, importLabel;
-		
-		private int importFileCount=0;
-		
-		private void updateZoomFromSlider() {
-			zoomScale = Math.pow(2, (zoomSlider.getValue()-SLIDER_TICKS/2));
-			if(zoomScale>=0.25) // no decimals
-				zoomLabel.setText((int)(100*zoomScale)+"%");
-			else
-				zoomLabel.setText((100*zoomScale)+"%");
-			imagePanel.updateZoom();
-		}
-		
-		public void changeZoom(int change) {
-			zoomSlider.setValue(zoomSlider.getValue() + change);
-		}
-		
-		public double getZoomScale() {
-			return zoomScale;
-		}
-		
-		public void updateMouseLocation() {
-			if(imagePanel.isMouseInBounds()) {
-				locationLabel.setText(imagePanel.getMouseX()+", "+imagePanel.getMouseY());
-				if(imagePanel.isMouseHeld()) {
-					Color c = imagePanel.getColourUnderMouse();
-					setColourLabel(c);
-				}
-			} else
-				locationLabel.setText("");
-			
-		}
-		
-		private void setColourLabel(Color c) {
-			colourLabelRed.setText("R="+c.getRed());
-			colourLabelGreen.setText("G="+c.getGreen());
-			colourLabelBlue.setText("B="+c.getBlue());
-			colourLabelAlpha.setText("A="+c.getAlpha());
-			colourLabel.setBackground(new Color(c.getRGB(),false));
-		}
-		
-		private class ButtonMouseListener implements MouseListener {
-			private JButton j;
-			public ButtonMouseListener(JButton j) {
-				this.j=j;
-			}
-			public void mouseReleased(MouseEvent e) {}
-			public void mousePressed(MouseEvent e) {}
-			public void mouseClicked(MouseEvent e) {}
-			public void mouseExited(MouseEvent e) {
-				j.setBorderPainted(false);
-			}
-			
-			@Override
-			public void mouseEntered(MouseEvent e) {
-				j.setBorderPainted(true);
-			}
-			
-		};
-		
-		public void setNumberOfFoundFiles(int number) {
-			importFileCount=number;
-			importLabel.setText("Scanning... "+number+" files found");
-		}
-		
-		public void startImport(int number) {
-			importFileCount = number;
-			setNumberProcessedFiles(0);
-		}
-		
-		public void setNumberProcessedFiles(int number) {
-			if(number > importFileCount)
-				number = 0; // parallel processing fix (next import starts before the last finished on multi import)
-			importLabel.setText("Processed: "+String.format("%s", number)+" of "+String.format("%s", importFileCount));
-		}
-		
-		public void endImport() {
-			importLabel.setText("");
-		}
-
-		public RibbonPanel() {
-			setBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)));
-			
-			SpringLayout layout = new SpringLayout();
-			setLayout(layout);
-			
-			JButton plusButton = new JButton();
-			plusButton.setIcon(plusIcon);
-			layout.putConstraint(SpringLayout.NORTH, plusButton, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, plusButton, 0, SpringLayout.EAST, this);
-			layout.putConstraint(SpringLayout.SOUTH, plusButton, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, plusButton, -25, SpringLayout.EAST, this);
-			plusButton.setOpaque(false);
-			plusButton.setBorderPainted(false);
-			plusButton.setFocusPainted(false);
-			plusButton.setBackground(new Color(0f,0f,0f,0f));
-			plusButton.setForeground(new Color(0f,0f,0f,0f));
-			plusButton.addMouseListener(new ButtonMouseListener(plusButton));
-			add(plusButton);
-			
-			plusButton.addActionListener((ActionEvent e) -> {
-				changeZoom(1);
-			});
-			
-			zoomSlider = new JSlider();
-			layout.putConstraint(SpringLayout.NORTH, zoomSlider, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, zoomSlider, 0, SpringLayout.WEST, plusButton);
-			layout.putConstraint(SpringLayout.SOUTH, zoomSlider, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, zoomSlider, -5 - SLIDER_TICKS*10, SpringLayout.EAST, this);
-			zoomSlider.setMajorTickSpacing(1);
-			zoomSlider.setMaximum(SLIDER_TICKS);
-			zoomSlider.setValue(SLIDER_TICKS/2);
-			zoomSlider.setPaintTicks(true);
-			zoomSlider.setSnapToTicks(true);
-			add(zoomSlider);
-			
-			zoomSlider.addChangeListener(new ChangeListener() {
-				public void stateChanged(ChangeEvent e) {
-					updateZoomFromSlider();
-				}
-			});
-			
-			JButton minusButton = new JButton();
-			minusButton.setIcon(minusIcon);
-			layout.putConstraint(SpringLayout.NORTH, minusButton, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, minusButton, 0, SpringLayout.WEST, zoomSlider);
-			layout.putConstraint(SpringLayout.SOUTH, minusButton, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, minusButton, -25, SpringLayout.WEST, zoomSlider);
-			minusButton.setOpaque(false);
-			minusButton.setBorderPainted(false);
-			minusButton.setFocusPainted(false);
-			minusButton.setBackground(new Color(0f,0f,0f,0f));
-			minusButton.setForeground(new Color(0f,0f,0f,0f));
-			minusButton.addMouseListener(new ButtonMouseListener(minusButton));
-			add(minusButton);
-			
-			minusButton.addActionListener((ActionEvent e) -> {
-				changeZoom(-1);
-			});
-			
-			JSeparator sep1 = new JSeparator();
-			layout.putConstraint(SpringLayout.NORTH, sep1, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, sep1, 0, SpringLayout.WEST, minusButton); // -20
-			layout.putConstraint(SpringLayout.SOUTH, sep1, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, sep1, -2, SpringLayout.WEST, minusButton);
-			sep1.setOrientation(JSlider.VERTICAL);
-			add(sep1);
-			
-			zoomLabel = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, zoomLabel, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, zoomLabel, 0, SpringLayout.WEST, sep1);
-			layout.putConstraint(SpringLayout.SOUTH, zoomLabel, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, zoomLabel, -60, SpringLayout.WEST, sep1);
-			zoomLabel.setText("100%");
-			add(zoomLabel);
-			
-			JSeparator sep2 = new JSeparator();
-			layout.putConstraint(SpringLayout.NORTH, sep2, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, sep2, -5, SpringLayout.WEST, zoomLabel);
-			layout.putConstraint(SpringLayout.SOUTH, sep2, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, sep2, -7, SpringLayout.WEST, zoomLabel);
-			sep2.setOrientation(JSlider.VERTICAL);
-			add(sep2);
-			
-			locationLabel = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, locationLabel, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, locationLabel, 0, SpringLayout.WEST, sep2);
-			layout.putConstraint(SpringLayout.SOUTH, locationLabel, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, locationLabel, -68, SpringLayout.WEST, sep2);
-			add(locationLabel);
-			
-			JSeparator sep3 = new JSeparator();
-			layout.putConstraint(SpringLayout.NORTH, sep3, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, sep3, -5, SpringLayout.WEST, locationLabel);
-			layout.putConstraint(SpringLayout.SOUTH, sep3, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, sep3, -7, SpringLayout.WEST, locationLabel);
-			sep3.setOrientation(JSlider.VERTICAL);
-			add(sep3);
-			
-			final JPopupMenu popupColour = new JPopupMenu();
-	        JMenuItem item = new JMenuItem("Copy as Hex");
-	        item.setMnemonic(KeyEvent.VK_H);
-	        item.addActionListener((ActionEvent e)-> {
-	        	Color c = colourLabel.getBackground();
-	        	int i = (c.getRed()<<16) | (c.getGreen()<<8) | c.getBlue();
-	        	String hex = Integer.toHexString(i);
-	        	hex = "000000".substring(hex.length()) + hex;
-	        	StringSelection s = new StringSelection(hex);
-	        	clipboard.setContents(s, clipboardOwner);
-	        });
-	        popupColour.add(item);
-	        
-	        item = new JMenuItem("Copy as RGB");
-	        item.setMnemonic(KeyEvent.VK_R);
-	        item.addActionListener((ActionEvent e)-> {
-	        	Color c = colourLabel.getBackground();
-	        	String rgb = c.getRed()+" "+c.getGreen()+" "+c.getBlue();
-	        	StringSelection s = new StringSelection(rgb);
-	        	clipboard.setContents(s, clipboardOwner);
-	        });
-	        popupColour.add(item);
-			
-			colourLabel = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, colourLabel, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, colourLabel, 0, SpringLayout.WEST, sep3);
-			layout.putConstraint(SpringLayout.SOUTH, colourLabel, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, colourLabel, -20, SpringLayout.WEST, sep3);
-			colourLabel.setOpaque(true);
-			//colourLabel.setBorder(BorderFactory.createLineBorder(new Color(192, 192, 192)));;
-			add(colourLabel);
-			
-			colourLabel.addMouseListener(new MouseListener() {
-				boolean armed = false;
-				@Override
-				public void mouseReleased(MouseEvent e) {
-					if(armed) {
-						Point m = colourLabel.getMousePosition();
-						popupColour.show(colourLabel, m.x ,m.y);
-					}
-				}
-				
-				@Override
-				public void mousePressed(MouseEvent e) {
-					armed = true;
-				}
-				
-				@Override
-				public void mouseExited(MouseEvent e) {
-					armed = false;
-				}
-				
-				@Override
-				public void mouseEntered(MouseEvent e) {}
-				
-				@Override
-				public void mouseClicked(MouseEvent e) {}
-			});
-			
-			// i hated all the monospaced fonts so i'm just making 4 JLabels instead.
-			
-			colourLabelAlpha = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, colourLabelAlpha, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, colourLabelAlpha, 0, SpringLayout.WEST, colourLabel);
-			layout.putConstraint(SpringLayout.SOUTH, colourLabelAlpha, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, colourLabelAlpha, -45, SpringLayout.WEST, colourLabel);
-			add(colourLabelAlpha);
-			
-			colourLabelBlue = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, colourLabelBlue, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, colourLabelBlue, 0, SpringLayout.WEST, colourLabelAlpha);
-			layout.putConstraint(SpringLayout.SOUTH, colourLabelBlue, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, colourLabelBlue, -45, SpringLayout.WEST, colourLabelAlpha);
-			add(colourLabelBlue);
-			
-			colourLabelGreen = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, colourLabelGreen, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, colourLabelGreen, 0, SpringLayout.WEST, colourLabelBlue);
-			layout.putConstraint(SpringLayout.SOUTH, colourLabelGreen, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, colourLabelGreen, -45, SpringLayout.WEST, colourLabelBlue);
-			add(colourLabelGreen);
-			
-			colourLabelRed = new JLabel();
-			layout.putConstraint(SpringLayout.NORTH, colourLabelRed, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, colourLabelRed, 0, SpringLayout.WEST, colourLabelGreen);
-			layout.putConstraint(SpringLayout.SOUTH, colourLabelRed, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, colourLabelRed, -45, SpringLayout.WEST, colourLabelGreen);
-			add(colourLabelRed);
-			
-			JSeparator sep4 = new JSeparator();
-			layout.putConstraint(SpringLayout.NORTH, sep4, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, sep4, -5, SpringLayout.WEST, colourLabelRed);
-			layout.putConstraint(SpringLayout.SOUTH, sep4, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, sep4, -7, SpringLayout.WEST, colourLabelRed);
-			sep4.setOrientation(JSlider.VERTICAL);
-			add(sep4);
-			
-			importLabel = new JLabel("");
-			layout.putConstraint(SpringLayout.NORTH, importLabel, 0, SpringLayout.NORTH, this);
-			layout.putConstraint(SpringLayout.EAST, importLabel, -5, SpringLayout.WEST, sep4);
-			layout.putConstraint(SpringLayout.SOUTH, importLabel, 0, SpringLayout.SOUTH, this);
-			layout.putConstraint(SpringLayout.WEST, importLabel, 5, SpringLayout.WEST, this);
-			add(importLabel);
-			
-			setColourLabel(Color.black);
-		}
-	}
+	
 	
 	private class ConfigPanelTop extends JPanel {
 		
@@ -2153,8 +1860,8 @@ public class Editor extends JFrame {
 		}
 		
 		private DefaultMutableTreeNode getSimilarChildFromObject(DefaultMutableTreeNode host, Object o) {
-			for(@SuppressWarnings("unchecked") Enumeration<DefaultMutableTreeNode> e = host.children();e.hasMoreElements();) {
-				DefaultMutableTreeNode child = e.nextElement();
+			for(Enumeration<TreeNode> e = host.children();e.hasMoreElements();) {
+				DefaultMutableTreeNode child = (DefaultMutableTreeNode)e.nextElement();
 				Object childComp = child.getUserObject();
 				if(o.getClass()==String.class ? o.equals(childComp) : o == childComp)
 					return child;
@@ -2208,9 +1915,9 @@ public class Editor extends JFrame {
 		private DefaultMutableTreeNode[] getTopLevelNodes() {
 			ArrayList<DefaultMutableTreeNode> nodes = new ArrayList<DefaultMutableTreeNode>();
 			@SuppressWarnings("unchecked")
-			Enumeration<DefaultMutableTreeNode> e = root.children();
+			Enumeration<TreeNode> e = root.children();
 			while(e.hasMoreElements())
-				nodes.add(e.nextElement());
+				nodes.add((DefaultMutableTreeNode)e.nextElement());
 			return nodes.toArray(new DefaultMutableTreeNode[nodes.size()]);
 		}
 
@@ -2255,9 +1962,9 @@ public class Editor extends JFrame {
 		private DefaultMutableTreeNode[] getChildren(DefaultMutableTreeNode node) {
 			ArrayList<DefaultMutableTreeNode> nodes = new ArrayList<DefaultMutableTreeNode>();
 			@SuppressWarnings("unchecked")
-			Enumeration<DefaultMutableTreeNode> e = node.children();
+			Enumeration<TreeNode> e = node.children();
 			while(e.hasMoreElements()) {
-				nodes.add(e.nextElement());
+				nodes.add((DefaultMutableTreeNode)e.nextElement());
 			}
 			return nodes.toArray(new DefaultMutableTreeNode[nodes.size()]);
 		}
@@ -2406,10 +2113,9 @@ public class Editor extends JFrame {
 		}*/
 		
 		private DefaultMutableTreeNode getTopLevelNodeFromPapaFile(PapaFile p) {
-			@SuppressWarnings("unchecked")
-			Enumeration<DefaultMutableTreeNode> e = (Enumeration<DefaultMutableTreeNode>)root.children();
+			Enumeration<TreeNode> e = root.children();
 			while(e.hasMoreElements()) {
-				DefaultMutableTreeNode element = e.nextElement();
+				DefaultMutableTreeNode element = (DefaultMutableTreeNode)e.nextElement();
 				if(element.getUserObject() instanceof PapaTexture && ((PapaTexture)element.getUserObject()).getParent().equals(p)
 						|| element.getUserObject() instanceof PapaFile && ((PapaFile)element.getUserObject()).equals(p)) {
 					fileTree.setSelectionPath(new TreePath(element.getPath()));
@@ -2611,9 +2317,10 @@ public class Editor extends JFrame {
 	        	
 	        	DefaultMutableTreeNode toSelect = replaced;
 	        	@SuppressWarnings("unchecked")
-				Enumeration<DefaultMutableTreeNode> en = replaced.children();
+				//Enumeration<DefaultMutableTreeNode> en = replaced.children();
+	        	Enumeration<TreeNode> en = replaced.children();
 	        	while(en.hasMoreElements()) {
-	        		DefaultMutableTreeNode n = en.nextElement();
+	        		DefaultMutableTreeNode n = (DefaultMutableTreeNode)en.nextElement();
 	        		if(n.getUserObject()==t)
 	        			toSelect = n;
 	        	}
@@ -2680,11 +2387,10 @@ public class Editor extends JFrame {
 		}
 		
 		public PapaFile[] getTargetablePapaFiles() {
-			@SuppressWarnings("unchecked")
-			Enumeration<DefaultMutableTreeNode> e =  root.children();
+			Enumeration<TreeNode> e =  root.children();
 			ArrayList<PapaFile> files = new ArrayList<PapaFile>();
 			while(e.hasMoreElements())
-				files.add(getAssociatedPapaFile(e.nextElement()));
+				files.add(getAssociatedPapaFile((DefaultMutableTreeNode)e.nextElement()));
 			return files.toArray(new PapaFile[files.size()]);
 		}
 		
@@ -3027,456 +2733,6 @@ public class Editor extends JFrame {
 		        }
 		    }
 	    }
-	}
-	
-	private class ImagePanel extends JPanel { //TODO: Sprite sheet support (enter number of columns, rows, and images. animate button
-		private static final long serialVersionUID = 341369068060762310L;
-		
-		private boolean ignoreAlpha,luminance, tile, mouseInBounds, mouseHeld, showDXT;
-		private int width, height, index, mouseX, mouseY;
-		private PapaTexture image;
-		private double scale=1;
-		
-		private BufferedImage ignoreAlphaCache;
-		private int ignoreAlphaIndexCache = 0,ignoreAlphaModeCache = 1;
-		private boolean ignoreAlphaLuminanceCache = false;
-		
-		private boolean dragDropEnabled = true;
-		
-		public final static int RGBA = 0, RED = 1, GREEN = 2, BLUE = 3, ALPHA = 4;
-		private int mode = 0;
-		
-		ImagePanel() {
-			super();
-			initialzeListeners();
-			initializeTransferHandler();
-		}
-
-		private void initializeTransferHandler() {
-			setTransferHandler(new TransferHandler() {
-
-				private static final long serialVersionUID = 6432655799671782224L;
-
-				public boolean canImport(TransferHandler.TransferSupport support) {
-					if(!dragDropEnabled)
-						return false;
-		            if (!support.isDataFlavorSupported(DataFlavor.javaFileListFlavor) || ! support.isDrop()) {
-		                return false;
-		            }
-		            boolean moveSupported = (COPY & support.getSourceDropActions()) == COPY;
-
-		            if (!moveSupported)
-		                return false;
-		            support.setDropAction(TransferHandler.COPY);
-		            return true;
-		        }
-
-		        public boolean importData(TransferHandler.TransferSupport support) {
-		            if (!canImport(support)) {
-		                return false;
-		            }
-		            Transferable t = support.getTransferable();
-		            try {
-						@SuppressWarnings("unchecked")
-						List<File> l =(List<File>)t.getTransferData(DataFlavor.javaFileListFlavor);
-						readAll(l.toArray(new File[l.size()]));
-						
-		            } catch (UnsupportedFlavorException e) {
-		            	showError("An unexpected error orccured:\n"+e.getMessage(),"Error", new Object[] {"Ok"},"Ok");
-		            	e.printStackTrace();
-		                return false;
-		            } catch (IOException e) {
-		            	showError(e.getMessage(),"IO Error", new Object[] {"Ok"},"Ok");
-		            	e.printStackTrace();
-		                return false;
-		            } catch (Exception ex) { //TODO this is only for testing
-		            	showError(ex.getMessage()+", "+ex.getClass(),"Error", new Object[] {"Ok"},"Ok");
-		            	ex.printStackTrace();
-		            	return false;
-		            }
-
-		            return true;
-		        }
-		    });
-		}
-		
-		private void initialzeListeners() {
-			addMouseWheelListener(new MouseWheelListener() { // mouse zoom support
-				@Override
-				public void mouseWheelMoved(MouseWheelEvent e) {
-					int sign = e.getWheelRotation()>0 ? -1 : 1;
-					if(e.isControlDown()) 
-						ribbonPanel.changeZoom(sign);
-					else if(e.isShiftDown()) {
-						horizontal.setValue((int) (horizontal.getValue() + horizontal.getVisibleAmount() / 2 * -sign));
-						updateMouseLocation(e.getX(), e.getY());
-					} else {
-						vertical.setValue((int) (vertical.getValue() + vertical.getVisibleAmount() / 2 *  -sign));
-						updateMouseLocation(e.getX(), e.getY());
-					}
-				}
-			});
-			
-			addMouseListener(new MouseListener() {
-				
-				@Override
-				public void mouseReleased(MouseEvent e) {
-					mouseHeld=false;
-				}
-				
-				@Override
-				public void mousePressed(MouseEvent e) {
-					if(e.getButton()==MouseEvent.BUTTON1)
-						mouseHeld=true;
-					updateMouseLocation(e.getX(), e.getY());
-				}
-				
-				@Override
-				public void mouseExited(MouseEvent e) {
-					updateMouseLocation(-1, -1);
-				}
-				
-				@Override
-				public void mouseEntered(MouseEvent e) {}
-				
-				@Override
-				public void mouseClicked(MouseEvent e) {}
-			});
-			
-			addMouseMotionListener(new MouseMotionListener() {
-				
-				@Override
-				public void mouseMoved(MouseEvent e) {
-					updateMouseLocation(e.getX(), e.getY());
-				}
-				
-				@Override
-				public void mouseDragged(MouseEvent e) {
-					mouseMoved(e);
-				}
-			});
-			
-			addComponentListener(new ComponentListener() {
-				
-				@Override
-				public void componentShown(ComponentEvent e) {}
-				
-				@Override
-				public void componentResized(ComponentEvent e) {
-					updateScrollBars();
-					
-				}
-				
-				@Override
-				public void componentMoved(ComponentEvent e) {}
-				
-				@Override
-				public void componentHidden(ComponentEvent e) {}
-			});
-		}
-
-		private void updateMouseLocation(int mouseX, int mouseY) {
-			if(mouseX >= getTotalDrawWidth() || mouseX<0 || mouseY>=getTotalDrawHeight() || mouseY<0)
-				mouseInBounds=false;
-			else {
-				mouseInBounds=true;
-				this.mouseX = (int) (mouseX / scale + valueToPixels(horizontal)) % width;
-				this.mouseY = (int) (mouseY / scale + valueToPixels(vertical)) % height;
-			}
-			ribbonPanel.updateMouseLocation();
-		}
-		
-		private int getTotalDrawWidth() {
-			if(!isImageLoaded())
-				return 0;
-			return (int) (scale * width * (tile ? 2 : 1));
-		}
-		
-		private int getTotalDrawHeight() {
-			if(!isImageLoaded())
-				return 0;
-			return (int) (scale * height * (tile ? 2 : 1));
-		}
-		
-		private void updateScrollBars() {
-			updateScrollBars(valueToPixels(horizontal),valueToPixels(vertical));
-		}
-		
-		private void updateScrollBars(double lastX, double lastY) {
-			if(!isImageLoaded()) {
-				horizontal.setEnabled(false);
-				vertical.setEnabled(false);
-				return;
-			}
-			int imageWidth = getTotalDrawWidth();
-			int imageHeight = getTotalDrawHeight();
-
-			if(imageWidth > getWidth()) {
-				horizontal.setEnabled(true);
-				horizontal.setMaximum(imageWidth);
-				horizontal.setVisibleAmount(getWidth());
-				horizontal.setValue(pixelsToValue(lastX));
-				horizontal.setUnitIncrement((int)Math.max(10*scale, 1));
-			} else {
-				horizontal.setEnabled(false);
-				horizontal.setValue(0);
-				horizontal.setMaximum(0);
-			}
-			
-			if(imageHeight > getHeight()) {
-				vertical.setEnabled(true);
-				vertical.setMaximum(imageHeight);
-				vertical.setVisibleAmount(getHeight());
-				vertical.setValue(pixelsToValue(lastY));
-				vertical.setUnitIncrement((int)Math.max(10*scale, 1));
-			} else {
-				vertical.setEnabled(false);
-				vertical.setValue(0);
-				vertical.setMaximum(0);
-			}
-		}
-		
-		public void updateZoom() {
-			int mouseX = (int) (this.mouseX * scale); // undo the transform from the previous scale
-			int mouseY = (int) (this.mouseY * scale);
-			double lastXVal = valueToPixels(horizontal);
-			double lastYVal = valueToPixels(vertical);
-			scale = ribbonPanel.getZoomScale();
-			updateMouseLocation(mouseX,mouseY);
-			updateScrollBars(lastXVal,lastYVal);
-			repaint();
-		}
-
-		public Color getColourUnderMouse() {
-			if(!mouseInBounds)
-				return new Color(1f,1f,1f,1f);
-			return new Color(image.getImage(index).getRGB(mouseX % image.getImage(index).getWidth(), mouseY % image.getImage(index).getHeight()),true);
-		}
-		
-		public int getMouseX() {
-			return mouseX;
-		}
-		
-		public int getMouseY() {
-			return mouseY;
-		}
-		
-		public boolean isMouseInBounds() {
-			return mouseInBounds;
-		}
-		
-		public boolean isMouseHeld() {
-			return mouseHeld;
-		}
-		
-		public boolean isImageLoaded() {
-			return image != null;
-		}
-		
-		public void unload() {
-			setImage(null);
-		}
-		
-		public void setImage(PapaTexture tex) {
-			this.image = tex;
-			this.ignoreAlphaCache=null;
-			if(image!=null) {
-				this.width = image.getWidth();
-				this.height= image.getHeight();
-			}
-			updateScrollBars();
-			repaint();
-		}
-		
-		public void setMode(int mode) {
-			this.mode = mode;
-			repaint();
-		}
-		
-		public void setLuminance(boolean b) {
-			this.luminance = b;
-			repaint();
-		}
-		
-		public void setIgnoreAlpha(boolean b) {
-			this.ignoreAlpha = b;
-			repaint();
-		}
-		
-		public void showDXT(boolean selected) {
-			this.showDXT = selected;
-			repaint();
-		}
-		
-		public void setTile(boolean b) {
-			this.tile = b;
-			updateScrollBars();
-			repaint();
-		}
-		
-		public void setImageIndex(int index) {
-			this.index=index;
-			this.width=image.getWidth(index);
-			this.height=image.getHeight(index);
-			updateScrollBars();
-			repaint();
-		}
-		
-		private double valueToPixels(JScrollBar scroll) {
-			return scroll.getValue() / scale;
-		}
-		
-		private int pixelsToValue(double pixels) {
-			return (int) (pixels * scale);
-		}
-		
-		private BufferedImage getImageFromTexture() {
-			if(luminance)
-				return image.asLuminance(index);
-			
-			switch(mode) {
-				case RGBA:
-					return image.getImage(index);
-				case RED:
-					return image.asRed(index);
-				case GREEN:
-					return image.asGreen(index);
-				case BLUE:
-					return image.asBlue(index);
-				case ALPHA:
-					return image.asAlpha(index);
-				default:
-					throw new IndexOutOfBoundsException("Invalid mode, "+mode+" is not within bounds [0, 4]");
-			}
-		}
-		
-		public BufferedImage getImage() {
-			BufferedImage draw = getImageFromTexture();
-			if (ignoreAlpha && image.supportsAlpha()) {
-				if(ignoreAlphaChacheInvalid()) {
-					 // copy the data into a new BufferedImage with no alpha.
-					BufferedImage tmp = removeAlpha(draw);
-					
-					ignoreAlphaCache = tmp;
-					
-					ignoreAlphaIndexCache = index;
-					ignoreAlphaModeCache = mode;
-					ignoreAlphaLuminanceCache = luminance;
-				}
-				draw = ignoreAlphaCache;
-			}
-			return draw;
-		}
-		
-		public BufferedImage getFullImage() {
-			BufferedImage draw = getImage();
-			if(tile) {
-				int w = draw.getWidth();
-				int h = draw.getHeight();
-				BufferedImage out = new BufferedImage(w * 2, h * 2, draw.getType());
-				Graphics2D g2d = (Graphics2D) out.getGraphics();
-				g2d.drawImage(draw, 0, 0, null);
-				g2d.drawImage(draw, w, 0, null);
-				g2d.drawImage(draw, 0, h, null);
-				g2d.drawImage(draw, w, h, null);
-				draw = out;
-			}
-			return draw;
-		}
-		
-		private boolean ignoreAlphaChacheInvalid() {
-			return ignoreAlphaCache==null || ignoreAlphaIndexCache!=index || ignoreAlphaModeCache!=mode || ignoreAlphaLuminanceCache!=luminance;
-		}
-		
-		private BufferedImage removeAlpha(BufferedImage input) {
-			BufferedImage tmp = new BufferedImage(input.getWidth(),input.getHeight(),BufferedImage.TYPE_INT_RGB);
-			int[] data = new int[input.getWidth()*input.getHeight()];
-			input.getRGB(0, 0, input.getWidth(), input.getHeight(), data, 0, input.getWidth());
-			tmp.setRGB(0, 0, input.getWidth(), input.getHeight(), data, 0, input.getWidth());
-			return tmp;
-		}
-		
-		@Override
-		public void paintComponent(Graphics g) {
-			super.paintComponent(g);
-			
-			if(image == null)
-				return;
-			
-			Graphics2D g2d = (Graphics2D)g.create();
-			g2d.setClip(0, 0, Math.min(getTotalDrawWidth(),getWidth()), Math.min(getTotalDrawHeight(),getHeight()));
-			
-			BufferedImage draw = getImage();
-			
-			if(! ignoreAlpha && image.supportsAlpha())
-				drawCheckerboardGrid(g2d);
-			
-			AffineTransform newTransform = g2d.getTransform();
-			newTransform.scale(scale, scale);
-			newTransform.translate(-valueToPixels(horizontal), -valueToPixels(vertical));
-			g2d.setTransform(newTransform);
-			g2d.drawImage(draw, 0, 0, null);
-			if(tile) {
-				g2d.drawImage(draw, image.getWidth(index), 0, null);
-				g2d.drawImage(draw, 0, image.getHeight(index), null);
-				g2d.drawImage(draw, image.getWidth(index), image.getHeight(index), null);
-			}
-			
-			if(showDXT)
-				drawDXTZones((Graphics2D)g.create());
-		}
-		
-		private void drawDXTZones(Graphics2D g) {
-			g.setColor(new Color(0.1f,0.1f,0.1f));
-			g.setXORMode(new Color(1f,1f,1f));
-			if(scale<1)
-				return;
-			float spacing = (float) (4 * scale);
-			
-			int horizontal = (int) (image.getWidth(index) * scale);
-			int vertical = (int) (image.getHeight(index) * scale);
-			
-			int xOrig = (int) (valueToPixels(Editor.this.horizontal) * scale); // the origin of the image, corrected for scale
-			int yOrig = (int) (valueToPixels(Editor.this.vertical) * scale);
-			
-			int canvasWidth = getWidth();
-			int canvasHeight = getHeight();
-			// converting between coordinate spaces is hard.
-			drawDXTZone(g, (int)(-xOrig % spacing),  (int) (-yOrig % spacing), Math.min(horizontal - xOrig,canvasWidth), Math.min(vertical - yOrig,canvasHeight), spacing);
-			if(tile) {
-				drawDXTZone(g,	Math.max((int)((horizontal - xOrig) % spacing), horizontal - xOrig),(int) (-yOrig % spacing),
-								Math.min(2 * horizontal - xOrig,canvasWidth), Math.min(vertical - yOrig,canvasHeight), spacing);
-				drawDXTZone(g,	(int)(-xOrig % spacing), Math.max((int)((vertical - yOrig) % spacing), vertical - yOrig),
-								Math.min(horizontal - xOrig,canvasWidth), Math.min(2 * vertical - yOrig,canvasHeight), spacing);
-				drawDXTZone(g,	Math.max((int)((horizontal - xOrig) % spacing), horizontal - xOrig), Math.max((int)((vertical - yOrig) % spacing), vertical - yOrig),
-								Math.min(2 * horizontal - xOrig,canvasWidth), Math.min(2 * vertical - yOrig,canvasHeight), spacing);
-			}
-			
-		}
-		
-		private void drawDXTZone(Graphics2D g2d,int startX, int startY, int endX, int endY, float change) {
-			if(endY <= startY)
-				return;
-			
-			for(float x = startX;x<endX;x+=change) {
-				int xx = (int)x;
-				g2d.drawLine(xx, startY, xx, endY);
-			}
-			for(float y =startY;y<endY;y+=change) {
-				int yy = (int) y;
-				g2d.drawLine(startX, yy, endX, yy);
-			}
-		}
-
-		private void drawCheckerboardGrid(Graphics2D g) {
-			int drawWidth = Math.min(getTotalDrawWidth(),getWidth());
-			int drawHeight = Math.min(getTotalDrawHeight(),getHeight());
-			
-			for(int x = (int) (-valueToPixels(horizontal) % 64);x<drawWidth;x+=64)
-				for(int y = (int) (-valueToPixels(vertical)% 64);y<drawHeight;y+=64)
-					g.drawImage(checkerboard, x, y, null);
-		}
-		
 	}
 	
 	public static int showError(Object message, String title, Object[] options, Object Default)
