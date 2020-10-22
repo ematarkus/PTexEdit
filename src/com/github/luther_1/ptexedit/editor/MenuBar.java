@@ -43,6 +43,8 @@ public class MenuBar extends JMenuBar {
 						editCopy, editPaste;
 	public boolean clipboardHasImage, readingFiles;
 	
+	private JFileChooser fileChooser = null;
+	
 	private final Editor editor;
 	
 	public MenuBar(Editor editor) {
@@ -58,13 +60,15 @@ public class MenuBar extends JMenuBar {
 		fileOpen.setMnemonic('o');
 		
 		fileOpen.addActionListener((ActionEvent e) -> {
-			JFileChooser j = new JFileChooser();
+			if(fileChooser == null) {
+				fileChooser = new JFileChooser();
+				fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+				fileChooser.setAcceptAllFileFilterUsed(false);
+				fileChooser.setFileFilter(getFileHandler().getPapaFilter());
+			}
 			
-			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
-			j.setAcceptAllFileFilterUsed(false);
-			j.setFileFilter(getFileHandler().getPapaFilter());
-			if (j.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-				File file = j.getSelectedFile();
+			if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+				File file = fileChooser.getSelectedFile();
 				editor.readAll(file);
 			}
 		});
