@@ -67,19 +67,19 @@ public class Main {
 		
 		editor.menu.setSelectedRadioButton(Integer.valueOf(prop.getProperty("Application.Menu.View.Channels", "0")));
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Luminance", "false")))
-			editor.menu.mViewLuminance.doClick(0); // The fastest click in the west.
+			editor.menu.viewLuminance.doClick(0); // The fastest click in the west.
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Alpha", "false")))
-			editor.menu.mViewNoAlpha.doClick(0);
+			editor.menu.viewNoAlpha.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.Tile", "false")))
-			editor.menu.mViewTile.doClick(0);
+			editor.menu.viewTile.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.View.DXT", "false")))
-			editor.menu.mViewDXT.doClick(0);
+			editor.menu.viewDXT.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.ShowRoot", "false")))
-			editor.menu.mOptionsShowRoot.doClick(0);
+			editor.menu.optionsShowRoot.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.AllowEmpty", "false")))
-			editor.menu.mOptionsAllowEmpty.doClick(0);
+			editor.menu.optionsAllowEmpty.doClick(0);
 		if(Boolean.valueOf(prop.getProperty("Application.Menu.Options.SuppressWarnings", "false")))
-			editor.menu.mOptionsAllowEmpty.doClick(0);
+			editor.menu.optionsAllowEmpty.doClick(0);
 		//e.maxThreads = Integer.valueOf(prop.getProperty("Application.Config.MaxThreads", "4"));
 		
 		TextureSettings t = new TextureSettings();

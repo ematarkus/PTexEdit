@@ -216,13 +216,13 @@ public class Editor extends JFrame {
 			prop.setProperty("Application.SplitPane.Location", 				""+(int)mainPanel.getDividerLocation());
 			prop.setProperty("Application.State", 							""+getExtendedState());
 			prop.setProperty("Application.Menu.View.Channels", 				""+menu.getSelectedRadioButton());
-			prop.setProperty("Application.Menu.View.Luminance", 			""+menu.mViewLuminance.isSelected());
-			prop.setProperty("Application.Menu.View.Alpha", 				""+menu.mViewNoAlpha.isSelected());
-			prop.setProperty("Application.Menu.View.Tile", 					""+menu.mViewTile.isSelected());
-			prop.setProperty("Application.Menu.View.DXT", 					""+menu.mViewDXT.isSelected());
-			prop.setProperty("Application.Menu.Options.ShowRoot",			""+menu.mOptionsShowRoot.isSelected());
-			prop.setProperty("Application.Menu.Options.AllowEmpty",			""+menu.mOptionsAllowEmpty.isSelected());
-			prop.setProperty("Application.Menu.Options.SuppressWarnings",	""+menu.mOptionsSuppressWarnings.isSelected());
+			prop.setProperty("Application.Menu.View.Luminance", 			""+menu.viewLuminance.isSelected());
+			prop.setProperty("Application.Menu.View.Alpha", 				""+menu.viewNoAlpha.isSelected());
+			prop.setProperty("Application.Menu.View.Tile", 					""+menu.viewTile.isSelected());
+			prop.setProperty("Application.Menu.View.DXT", 					""+menu.viewDXT.isSelected());
+			prop.setProperty("Application.Menu.Options.ShowRoot",			""+menu.optionsShowRoot.isSelected());
+			prop.setProperty("Application.Menu.Options.AllowEmpty",			""+menu.optionsAllowEmpty.isSelected());
+			prop.setProperty("Application.Menu.Options.SuppressWarnings",	""+menu.optionsSuppressWarnings.isSelected());
 			//prop.setProperty("Application.Config.MaxThreads", 	""+e.maxThreads);
 			
 			ImmutableTextureSettings settings = papaOptions.getCurrentSettings();

@@ -36,11 +36,11 @@ public class MenuBar extends JMenuBar {
 	
 	private static final long serialVersionUID = 275294845979597235L;
 
-	public ButtonGroup mViewChannelItems;
-	public JCheckBoxMenuItem mViewLuminance, mViewNoAlpha, mViewTile, mViewDXT, mOptionsShowRoot, mOptionsAllowEmpty, mOptionsSuppressWarnings;
-	public JRadioButtonMenuItem mViewChannelRGB, mViewChannelR, mViewChannelG, mViewChannelB, mViewChannelA;
-	public JMenuItem mFileOpen,mFileImport, mFileSave, mFileSaveAs, mFileExport, mToolsConvertFolder, mToolsShowInFileBrowser, mToolsReloadLinked,
-						mEditCopy, mEditPaste;
+	public ButtonGroup viewChannelItems;
+	public JCheckBoxMenuItem viewLuminance, viewNoAlpha, viewTile, viewDXT, optionsShowRoot, optionsAllowEmpty, optionsSuppressWarnings;
+	public JRadioButtonMenuItem viewChannelRGB, viewChannelR, viewChannelG, viewChannelB, viewChannelA;
+	public JMenuItem fileOpen,fileImport, fileSave, fileSaveAs, fileExport, toolsConvertFolder, toolsShowInFileBrowser, toolsReloadLinked,
+						editCopy, editPaste;
 	public boolean clipboardHasImage, readingFiles;
 	
 	private final Editor editor;
@@ -52,12 +52,12 @@ public class MenuBar extends JMenuBar {
 		mFile.setMnemonic('f');
 		add(mFile);
 		
-		mFileOpen = new JMenuItem("Open");
-		mFileOpen.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_MASK));
-		mFile.add(mFileOpen);
-		mFileOpen.setMnemonic('o');
+		fileOpen = new JMenuItem("Open");
+		fileOpen.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_MASK));
+		mFile.add(fileOpen);
+		fileOpen.setMnemonic('o');
 		
-		mFileOpen.addActionListener((ActionEvent e) -> {
+		fileOpen.addActionListener((ActionEvent e) -> {
 			JFileChooser j = new JFileChooser();
 			
 			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
@@ -72,32 +72,32 @@ public class MenuBar extends JMenuBar {
 		JSeparator separator_1 = new JSeparator();
 		mFile.add(separator_1);
 		
-		mFileSave = new JMenuItem("Save");
-		mFileSave.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK));
-		mFile.add(mFileSave);
-		mFileSave.setMnemonic('s');
-		mFileSave.setEnabled(false);
-		mFileSave.addActionListener((ActionEvent e) -> {
+		fileSave = new JMenuItem("Save");
+		fileSave.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK));
+		mFile.add(fileSave);
+		fileSave.setMnemonic('s');
+		fileSave.setEnabled(false);
+		fileSave.addActionListener((ActionEvent e) -> {
 			saveFile(editor.activeFile);
 		});
 		
-		mFileSaveAs = new JMenuItem("Save As...");
-		mFileSaveAs.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mFile.add(mFileSaveAs);
-		mFileSaveAs.setMnemonic('A');
-		mFileSaveAs.setEnabled(false);
-		mFileSaveAs.addActionListener((ActionEvent e) -> {
+		fileSaveAs = new JMenuItem("Save As...");
+		fileSaveAs.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mFile.add(fileSaveAs);
+		fileSaveAs.setMnemonic('A');
+		fileSaveAs.setEnabled(false);
+		fileSaveAs.addActionListener((ActionEvent e) -> {
 			saveFileAs(editor.activeFile);
 		});
 		
 		JSeparator separator = new JSeparator();
 		mFile.add(separator);
 		
-		mFileImport = new JMenuItem("Import");
-		mFileImport.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, InputEvent.CTRL_MASK));
-		mFile.add(mFileImport);
-		mFileImport.setMnemonic('i');
-		mFileImport.addActionListener((ActionEvent e) -> { // this is identical to mFileOpen and just changes the accepted file types. Fight me.
+		fileImport = new JMenuItem("Import");
+		fileImport.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, InputEvent.CTRL_MASK));
+		mFile.add(fileImport);
+		fileImport.setMnemonic('i');
+		fileImport.addActionListener((ActionEvent e) -> { // this is identical to mFileOpen and just changes the accepted file types. Fight me.
 			JFileChooser j = new JFileChooser();
 			
 			j.setFileSelectionMode(JFileChooser.FILES_ONLY);
@@ -113,12 +113,12 @@ public class MenuBar extends JMenuBar {
 			}
 		});
 		
-		mFileExport = new JMenuItem("Export");
-		mFileExport.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_MASK));
-		mFile.add(mFileExport);
-		mFileExport.setMnemonic('e');
-		mFileExport.setEnabled(false);
-		mFileExport.addActionListener((ActionEvent e) -> {
+		fileExport = new JMenuItem("Export");
+		fileExport.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_MASK));
+		mFile.add(fileExport);
+		fileExport.setMnemonic('e');
+		fileExport.setEnabled(false);
+		fileExport.addActionListener((ActionEvent e) -> {
 			
 			JFileChooser j = new JFileChooser();
 			
@@ -167,20 +167,20 @@ public class MenuBar extends JMenuBar {
 		mEdit.setMnemonic('e');
 		add(mEdit);
 		
-		mEditCopy = new JMenuItem("Copy");
-		mEditCopy.setMnemonic('c');
-		mEditCopy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mEditCopy.setEnabled(false);
-		mEdit.add(mEditCopy);
-		mEditCopy.addActionListener((ActionEvent e)-> {
+		editCopy = new JMenuItem("Copy");
+		editCopy.setMnemonic('c');
+		editCopy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		editCopy.setEnabled(false);
+		mEdit.add(editCopy);
+		editCopy.addActionListener((ActionEvent e)-> {
 			transferToClipboard(editor.imagePanel.getFullImage());
 		});
 		
-		mEditPaste = new JMenuItem("Paste");
-		mEditPaste.setMnemonic('p');
-		mEditPaste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mEdit.add(mEditPaste);
-		mEditPaste.addActionListener((ActionEvent e)-> {
+		editPaste = new JMenuItem("Paste");
+		editPaste.setMnemonic('p');
+		editPaste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mEdit.add(editPaste);
+		editPaste.addActionListener((ActionEvent e)-> {
 			Image i = getImageFromClipboard();
 			if(i==null) {
 				editor.showError("Clipboard does not contain an image.", "Invalid input", new Object[] {"Ok"}, "Ok");
@@ -193,11 +193,11 @@ public class MenuBar extends JMenuBar {
 			@Override
 			public void flavorsChanged(FlavorEvent e) {
 				clipboardChanged();
-				mEditPaste.setEnabled(clipboardHasImage && ! readingFiles);
+				editPaste.setEnabled(clipboardHasImage && ! readingFiles);
 			}
 		});
 		clipboardChanged();
-		mEditPaste.setEnabled(clipboardHasImage);
+		editPaste.setEnabled(clipboardHasImage);
 		
 		JMenu mView = new JMenu("View");
 		mView.setMnemonic('v');
@@ -208,91 +208,91 @@ public class MenuBar extends JMenuBar {
 		mView.add(mViewChannel);
 		mViewChannel.setMnemonic('C');
 		
-		mViewChannelItems = new ButtonGroup();
+		viewChannelItems = new ButtonGroup();
 		
-		mViewChannelRGB = new JRadioButtonMenuItem("RGB",true);
-		mViewChannelRGB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewChannel.add(mViewChannelRGB);
-		mViewChannelItems.add(mViewChannelRGB);
-		mViewChannelRGB.addActionListener((ActionEvent e) -> {
-			if(mViewChannelRGB.isSelected())
+		viewChannelRGB = new JRadioButtonMenuItem("RGB",true);
+		viewChannelRGB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mViewChannel.add(viewChannelRGB);
+		viewChannelItems.add(viewChannelRGB);
+		viewChannelRGB.addActionListener((ActionEvent e) -> {
+			if(viewChannelRGB.isSelected())
 				editor.imagePanel.setMode(ImagePanel.RGBA);
 		});
 		
-		mViewChannelR = new JRadioButtonMenuItem("R");
-		mViewChannelR.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewChannel.add(mViewChannelR);
-		mViewChannelItems.add(mViewChannelR);
-		mViewChannelR.addActionListener((ActionEvent e) -> {
-			if(mViewChannelR.isSelected())
+		viewChannelR = new JRadioButtonMenuItem("R");
+		viewChannelR.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mViewChannel.add(viewChannelR);
+		viewChannelItems.add(viewChannelR);
+		viewChannelR.addActionListener((ActionEvent e) -> {
+			if(viewChannelR.isSelected())
 				editor.imagePanel.setMode(ImagePanel.RED);
 		});
 		
 		
-		mViewChannelG = new JRadioButtonMenuItem("G");
-		mViewChannelG.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewChannel.add(mViewChannelG);
-		mViewChannelItems.add(mViewChannelG);
-		mViewChannelG.addActionListener((ActionEvent e) -> {
-			if(mViewChannelG.isSelected())
+		viewChannelG = new JRadioButtonMenuItem("G");
+		viewChannelG.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mViewChannel.add(viewChannelG);
+		viewChannelItems.add(viewChannelG);
+		viewChannelG.addActionListener((ActionEvent e) -> {
+			if(viewChannelG.isSelected())
 				editor.imagePanel.setMode(ImagePanel.GREEN);
 		});
 		
 		
-		mViewChannelB = new JRadioButtonMenuItem("B");
-		mViewChannelB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewChannel.add(mViewChannelB);
-		mViewChannelItems.add(mViewChannelB);
-		mViewChannelB.addActionListener((ActionEvent e) -> {
-			if(mViewChannelB.isSelected())
+		viewChannelB = new JRadioButtonMenuItem("B");
+		viewChannelB.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mViewChannel.add(viewChannelB);
+		viewChannelItems.add(viewChannelB);
+		viewChannelB.addActionListener((ActionEvent e) -> {
+			if(viewChannelB.isSelected())
 				editor.imagePanel.setMode(ImagePanel.BLUE);
 		});
 		
 		
-		mViewChannelA = new JRadioButtonMenuItem("A");
-		mViewChannelA.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewChannel.add(mViewChannelA);
-		mViewChannelItems.add(mViewChannelA);
-		mViewChannelA.addActionListener((ActionEvent e) -> {
-			if(mViewChannelA.isSelected())
+		viewChannelA = new JRadioButtonMenuItem("A");
+		viewChannelA.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		mViewChannel.add(viewChannelA);
+		viewChannelItems.add(viewChannelA);
+		viewChannelA.addActionListener((ActionEvent e) -> {
+			if(viewChannelA.isSelected())
 				editor.imagePanel.setMode(ImagePanel.ALPHA);
 		});
 		
 		
-		mViewLuminance = new JCheckBoxMenuItem("Luminance");
-		mViewLuminance.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewLuminance.setMnemonic('l');
-		mView.add(mViewLuminance);
-		mViewLuminance.addActionListener((ActionEvent e) -> {
-			editor.imagePanel.setLuminance(mViewLuminance.isSelected());
+		viewLuminance = new JCheckBoxMenuItem("Luminance");
+		viewLuminance.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		viewLuminance.setMnemonic('l');
+		mView.add(viewLuminance);
+		viewLuminance.addActionListener((ActionEvent e) -> {
+			editor.imagePanel.setLuminance(viewLuminance.isSelected());
 		});
 		
 		
-		mViewNoAlpha = new JCheckBoxMenuItem("Ignore Alpha");
-		mViewNoAlpha.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewNoAlpha.setMnemonic('i');
-		mView.add(mViewNoAlpha);
-		mViewNoAlpha.addActionListener((ActionEvent e) -> {
-			editor.imagePanel.setIgnoreAlpha(mViewNoAlpha.isSelected());
+		viewNoAlpha = new JCheckBoxMenuItem("Ignore Alpha");
+		viewNoAlpha.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		viewNoAlpha.setMnemonic('i');
+		mView.add(viewNoAlpha);
+		viewNoAlpha.addActionListener((ActionEvent e) -> {
+			editor.imagePanel.setIgnoreAlpha(viewNoAlpha.isSelected());
 		});
 		
 		
-		mViewTile = new JCheckBoxMenuItem("Tile");
-		mViewTile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewTile.setMnemonic('t');
-		mView.add(mViewTile);
-		mViewTile.addActionListener((ActionEvent e) -> {
-			editor.imagePanel.setTile(mViewTile.isSelected());
+		viewTile = new JCheckBoxMenuItem("Tile");
+		viewTile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		viewTile.setMnemonic('t');
+		mView.add(viewTile);
+		viewTile.addActionListener((ActionEvent e) -> {
+			editor.imagePanel.setTile(viewTile.isSelected());
 		});
 		
 		mView.add(new JSeparator());
 		
-		mViewDXT = new JCheckBoxMenuItem("DXT Grid");
-		mViewDXT.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
-		mViewDXT.setMnemonic('d');
-		mView.add(mViewDXT);
-		mViewDXT.addActionListener((ActionEvent e) -> {
-			editor.imagePanel.showDXT(mViewDXT.isSelected());
+		viewDXT = new JCheckBoxMenuItem("DXT Grid");
+		viewDXT.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.CTRL_MASK | InputEvent.SHIFT_MASK));
+		viewDXT.setMnemonic('d');
+		mView.add(viewDXT);
+		viewDXT.addActionListener((ActionEvent e) -> {
+			editor.imagePanel.showDXT(viewDXT.isSelected());
 		});
 		
 		
@@ -300,20 +300,20 @@ public class MenuBar extends JMenuBar {
 		mTools.setMnemonic('t');
 		add(mTools);
 		
-		mToolsConvertFolder = new JMenuItem("Convert Folder");
-		mToolsConvertFolder.setMnemonic('c');
-		mTools.add(mToolsConvertFolder);
-		mToolsConvertFolder.addActionListener((ActionEvent e) -> {
+		toolsConvertFolder = new JMenuItem("Convert Folder");
+		toolsConvertFolder.setMnemonic('c');
+		mTools.add(toolsConvertFolder);
+		toolsConvertFolder.addActionListener((ActionEvent e) -> {
 			editor.batchConvert.showAt(editor.getX() + editor.getWidth() / 2, editor.getY() + editor.getHeight() / 2);
 		});
 		
-		mToolsShowInFileBrowser = new JMenuItem("Show in File Manager");
-		mToolsShowInFileBrowser.setEnabled(false);
-		mToolsShowInFileBrowser.setMnemonic('s');
+		toolsShowInFileBrowser = new JMenuItem("Show in File Manager");
+		toolsShowInFileBrowser.setEnabled(false);
+		toolsShowInFileBrowser.setMnemonic('s');
 		boolean supported = Desktop.getDesktop().isSupported(Desktop.Action.OPEN);
 		if(supported)
-			mTools.add(mToolsShowInFileBrowser);
-		mToolsShowInFileBrowser.addActionListener((ActionEvent e) -> {
+			mTools.add(toolsShowInFileBrowser);
+		toolsShowInFileBrowser.addActionListener((ActionEvent e) -> {
 			try {
 				File target = editor.activeFile.getFile().getParentFile();
 				if(!target.exists())
@@ -326,11 +326,11 @@ public class MenuBar extends JMenuBar {
 		
 		mTools.add(new JSeparator());
 		
-		mToolsReloadLinked = new JMenuItem("Reload Linked Files");
-		mToolsReloadLinked.setEnabled(false);
-		mToolsReloadLinked.setMnemonic('c');
-		mTools.add(mToolsReloadLinked);
-		mToolsReloadLinked.addActionListener((ActionEvent e) -> {
+		toolsReloadLinked = new JMenuItem("Reload Linked Files");
+		toolsReloadLinked.setEnabled(false);
+		toolsReloadLinked.setMnemonic('c');
+		mTools.add(toolsReloadLinked);
+		toolsReloadLinked.addActionListener((ActionEvent e) -> {
 			editor.activeFile.reloadLinkedTextures();
 			editor.configSelector.reloadTopLevelSelectedNode();
 			editor.setActiveFile(editor.activeFile);
@@ -365,28 +365,28 @@ public class MenuBar extends JMenuBar {
 		//JMenuItem mOptionsCacheInfo = new JMenuItem("Remember Image Settings"); TODO
 		//mOptions.add(mOptionsCacheInfo);
 		
-		mOptionsShowRoot = new JCheckBoxMenuItem("Always Show Root");
-		mOptions.add(mOptionsShowRoot);
-		mOptionsShowRoot.addActionListener((ActionEvent e) -> {
-			editor.configSelector.setAlwaysShowRoot(mOptionsShowRoot.isSelected());
+		optionsShowRoot = new JCheckBoxMenuItem("Always Show Root");
+		mOptions.add(optionsShowRoot);
+		optionsShowRoot.addActionListener((ActionEvent e) -> {
+			editor.configSelector.setAlwaysShowRoot(optionsShowRoot.isSelected());
 		});
-		mOptionsShowRoot.setMnemonic('a');
+		optionsShowRoot.setMnemonic('a');
 		
-		mOptionsAllowEmpty = new JCheckBoxMenuItem("Allow Non-Image Files");
-		mOptions.add(mOptionsAllowEmpty);
-		mOptionsAllowEmpty.addActionListener((ActionEvent e) -> {
-			editor.ALLOW_EMPTY_FILES = mOptionsAllowEmpty.isSelected();
+		optionsAllowEmpty = new JCheckBoxMenuItem("Allow Non-Image Files");
+		mOptions.add(optionsAllowEmpty);
+		optionsAllowEmpty.addActionListener((ActionEvent e) -> {
+			editor.ALLOW_EMPTY_FILES = optionsAllowEmpty.isSelected();
 			if(!editor.ALLOW_EMPTY_FILES)
 				editor.configSelector.removeEmptyFiles();
 		});
-		mOptionsAllowEmpty.setMnemonic('n');
+		optionsAllowEmpty.setMnemonic('n');
 		
-		mOptionsSuppressWarnings = new JCheckBoxMenuItem("Suppress Warnings");
-		mOptions.add(mOptionsSuppressWarnings);
-		mOptionsSuppressWarnings.addActionListener((ActionEvent e) -> {
-			editor.SUPPRESS_WARNINGS = mOptionsSuppressWarnings.isSelected();
+		optionsSuppressWarnings = new JCheckBoxMenuItem("Suppress Warnings");
+		mOptions.add(optionsSuppressWarnings);
+		optionsSuppressWarnings.addActionListener((ActionEvent e) -> {
+			editor.SUPPRESS_WARNINGS = optionsSuppressWarnings.isSelected();
 		});
-		mOptionsSuppressWarnings.setMnemonic('s');
+		optionsSuppressWarnings.setMnemonic('s');
 		
 		JMenu mHelp = new JMenu("Help");
 		mHelp.setMnemonic('h');
@@ -406,7 +406,7 @@ public class MenuBar extends JMenuBar {
 	}
 	
 	public int getSelectedRadioButton() { // I hate ButtonGroup.
-		Enumeration<AbstractButton> i = mViewChannelItems.getElements();
+		Enumeration<AbstractButton> i = viewChannelItems.getElements();
 		int j=0;
 		while(i.hasMoreElements()) {
 			if(i.nextElement().isSelected())
@@ -419,35 +419,35 @@ public class MenuBar extends JMenuBar {
 	public void setReadingFiles(boolean b) {
 		boolean enable = !b;
 		readingFiles = b;
-		mFileImport.setEnabled(enable);
-		mFileOpen.setEnabled(enable);
-		mToolsConvertFolder.setEnabled(enable);
-		mEditPaste.setEnabled(enable && clipboardHasImage);
+		fileImport.setEnabled(enable);
+		fileOpen.setEnabled(enable);
+		toolsConvertFolder.setEnabled(enable);
+		editPaste.setEnabled(enable && clipboardHasImage);
 	}
 
 	public void unload() {
-		mFileSave.setEnabled(false);
-		mFileSaveAs.setEnabled(false);
-		mFileExport.setEnabled(false);
-		mEditCopy.setEnabled(false);
-		mToolsShowInFileBrowser.setEnabled(false);
-		mToolsReloadLinked.setEnabled(false);
+		fileSave.setEnabled(false);
+		fileSaveAs.setEnabled(false);
+		fileExport.setEnabled(false);
+		editCopy.setEnabled(false);
+		toolsShowInFileBrowser.setEnabled(false);
+		toolsReloadLinked.setEnabled(false);
 	}
 
 	public void applySettings(PapaFile activeFile, int index, PapaTexture tex, boolean same) {
 		boolean hasTextures = !(activeFile.getNumTextures() == 0 || tex == null);
 		boolean linkValid = hasTextures && (!tex.isLinked() || tex.linkValid());
-		mFileSave.setEnabled(true);
-		mFileSaveAs.setEnabled(true);
-		mToolsShowInFileBrowser.setEnabled(activeFile.getFile()!=null && activeFile.getFile().exists());
+		fileSave.setEnabled(true);
+		fileSaveAs.setEnabled(true);
+		toolsShowInFileBrowser.setEnabled(activeFile.getFile()!=null && activeFile.getFile().exists());
 		
-		mFileExport.setEnabled(hasTextures && linkValid);
-		mEditCopy.setEnabled(hasTextures && linkValid);
-		mToolsReloadLinked.setEnabled(hasTextures && activeFile!=null);
+		fileExport.setEnabled(hasTextures && linkValid);
+		editCopy.setEnabled(hasTextures && linkValid);
+		toolsReloadLinked.setEnabled(hasTextures && activeFile!=null);
 	}
 
 	public void setSelectedRadioButton(int index) {
-		Enumeration<AbstractButton> i = mViewChannelItems.getElements();
+		Enumeration<AbstractButton> i = viewChannelItems.getElements();
 		int j=0;
 		AbstractButton a;
 		while(i.hasMoreElements()) {
